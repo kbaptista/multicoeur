@@ -46,11 +46,11 @@ float *compute (unsigned iterations)
     {
       step++;
       for (int y = 0; y < DIM; y++)
-	{
-	  int v =  MAX_HEIGHT * (1+sin( 4* (y+step) * 3.14/ DIM)) / 4;
-	  for (int x = 0; x < DIM; x++)
-	    ocean[y][x]  = v;
-	}
+    	{
+    	  int v =  MAX_HEIGHT * (1+sin( 4* (y+step) * 3.14/ DIM)) / 4;
+    	  for (int x = 0; x < DIM; x++)
+    	    ocean[y][x]  = v;
+    	}
     }
   return DYNAMIC_COLORING; // altitude-based coloring
   // return couleurs;

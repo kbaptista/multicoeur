@@ -6,7 +6,7 @@
 #include <math.h>
 #include <sys/time.h>
 
-#define DIM 17
+#define DIM 512
 #define MAX_HEIGHT  4
 #define TIME_DIFF(t1, t2) \
         ((t2.tv_sec - t1.tv_sec) * 1000000 + (t2.tv_usec - t1.tv_usec))

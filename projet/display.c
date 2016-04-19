@@ -668,7 +668,7 @@ void display_init (int argc, char **argv, unsigned dim, unsigned max_height,
 
   glutKeyboardFunc(appKeyboard);
   glutSpecialFunc(appSpecialKeyboard);
- glutMouseFunc(appMouse);
+  glutMouseFunc(appMouse);
   glutMotionFunc(appMotion);
 
   buildVBO();
