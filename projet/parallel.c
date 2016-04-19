@@ -2,10 +2,12 @@
 #include "display.h"
 
 #include <math.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define DIM 512
+
+#define DIM 128
 #define MAX_HEIGHT  4
 
 unsigned ocean[DIM][DIM][2];
@@ -44,6 +46,7 @@ static void print(int table)
 
 static void sand_init_homogeneous()
 {
+  #pragma omp parallel for schedule(static) collapse(2)
   for (int y = 0; y < DIM; y++){
     for (int x = 0; x < DIM; x++){
       ocean[y][x][0] = 5;
@@ -55,6 +58,7 @@ static void sand_init_homogeneous()
 static void sand_init_center()
 {
   int center_value = 100000;
+  #pragma omp parallel for schedule(static) collapse(2)
   for (int y = 0; y < DIM; y++){
     for (int x = 0; x < DIM; x++){
       ocean[y][x][0] = 0;
@@ -74,9 +78,10 @@ static void copy(int table){
 }
 
 float *compute(unsigned iterations){
+  #pragma omp parallel for schedule(static) collapse(3)
   for (unsigned i = 0; i < iterations; i++){
-    for (int y = 1; y < DIM-1; y++){
-      for (int x = 1; x < DIM-1; x++){
+    for (int x = 1; x < DIM-1; x++){
+      for (int y = 1; y < DIM-1; y++){
         if(ocean[y][x][table] >= MAX_HEIGHT)
         {
             int mod4 = ocean[y][x][table]%4;
@@ -95,8 +100,10 @@ float *compute(unsigned iterations){
   return DYNAMIC_COLORING;
 }
 
-int seq (int argc, char **argv)
+int parallel (int argc, char **argv)
 {
+  omp_set_nested(1);
+
   sand_init_homogeneous();
   //sand_init_center();
 
@@ -105,4 +112,5 @@ int seq (int argc, char **argv)
                 MAX_HEIGHT,       // hauteur maximale du tas
                 get,              // callback func
                 compute);         // callback func
+
 }
