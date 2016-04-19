@@ -124,8 +124,8 @@ static void add_sand_color (GLfloat x, GLfloat y, GLfloat z)
     if (ratio > 1.0)
       ratio = 1.0;
 
-    s_vbo_color[s_ci++] = ratio;
     s_vbo_color[s_ci++] = 0.0;
+    s_vbo_color[s_ci++] = ratio;
     s_vbo_color[s_ci++] = 1.0 - ratio;
   }
 #else
@@ -415,7 +415,6 @@ void updateDisplay(int i)
   gettimeofday (&lastDisplayTimeval,NULL);
   glutPostRedisplay();
 }
-
 void idle(void)
 {
   float *colors;
@@ -425,64 +424,72 @@ void idle(void)
   printFPS();
 
   if(!keepCool)
-    {
-      struct timeval t1,t2;
-      gettimeofday (&t1,NULL);
-      colors = compute_func_ptr (iterations[nbIterations]);
-      gettimeofday (&t2,NULL);
-      computeTime += TIME_DIFF(t1,t2);
-      nbFrames++;
-
-#ifdef PIX_SURFACE
-      if (colors && colors != DYNAMIC_COLORING)
-	texture = colors;
-
-      sand_surface_refresh (colors != STATIC_COLORING);
-
-      if (colors) {
-	// Refresh colors
-	glBindBuffer(GL_ARRAY_BUFFER, s_vbocid);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float),
-			s_vbo_color);
-      }
-#else
-      sand_surface_refresh (colors == DYNAMIC_COLORING);
-      
-      if (colors) {
-	// Refresh colors
-	glBindBuffer(GL_ARRAY_BUFFER, s_vbocid);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float),
-			(colors == DYNAMIC_COLORING) ? s_vbo_color : colors);
-	
-	texture = (colors == DYNAMIC_COLORING) ? s_vbo_color : colors;
-      }
-#endif
-      
-      // Refresh vertices
-      glBindBuffer(GL_ARRAY_BUFFER, s_vbovid);
-      glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float), s_vbo_vertex);
-      
-      
-      gettimeofday (&now,NULL);
-      int timediff = TIME_DIFF(lastDisplayTimeval,now);
-      if (timediff>=(periods[displayPeriod]) || firstCall )
-	{
-	  firstCall = 0;
-	  lastDisplayTimeval = now; 
-	  glutPostRedisplay ();
-	}
-      else
-	{
-	  keepCool = 1;
-	  //	  printf("displayPeriod-timediff  %d \n",(periods[displayPeriod]-timediff)/1000); 
-	  glutTimerFunc((1000+periods[displayPeriod]-timediff)/1000, updateDisplay,0);
-	}
-    }
-}
-  void initView (float *min_ext, float *max_ext)
   {
-    GLfloat light_diffuse[]   = {1.0, 1.0, 1.0, 1.0};
-  GLfloat light_position[] = {0.5, 0.5, 1.0, 0.0};
+    struct timeval t1,t2;
+    gettimeofday (&t1,NULL);
+    colors = compute_func_ptr (iterations[nbIterations]);
+    gettimeofday (&t2,NULL);
+    computeTime += TIME_DIFF(t1,t2);
+    nbFrames++;
+
+    #ifdef PIX_SURFACE
+    
+    if (colors && colors != DYNAMIC_COLORING)
+      texture = colors;
+
+    sand_surface_refresh (colors != STATIC_COLORING);
+
+    if (colors)
+    {
+    // Refresh colors
+      glBindBuffer(GL_ARRAY_BUFFER, s_vbocid);
+      glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float),
+			s_vbo_color);
+    }
+    
+    #else
+    
+    sand_surface_refresh (colors == DYNAMIC_COLORING);
+      
+    if (colors)
+    {
+    // Refresh colors
+      glBindBuffer(GL_ARRAY_BUFFER, s_vbocid);
+      glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float),
+			(colors == DYNAMIC_COLORING) ? s_vbo_color : colors);
+      texture = (colors == DYNAMIC_COLORING) ? s_vbo_color : colors;
+    }
+
+    #endif
+      
+    // Refresh vertices
+    glBindBuffer(GL_ARRAY_BUFFER, s_vbovid);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float), s_vbo_vertex);
+        
+    gettimeofday (&now,NULL);
+    int timediff = TIME_DIFF(lastDisplayTimeval,now);
+    if (timediff>=(periods[displayPeriod]) || firstCall )
+    {
+      firstCall = 0;
+      lastDisplayTimeval = now; 
+      glutPostRedisplay ();
+    }
+    
+    else
+    {
+	    keepCool = 1;
+      printf("cousou\n");
+  	  //	  printf("displayPeriod-timediff  %d \n",(periods[displayPeriod]-timediff)/1000); 
+  	  glutTimerFunc((1000+periods[displayPeriod]-timediff)/1000, updateDisplay,0);
+    }
+
+  }
+}
+
+void initView (float *min_ext, float *max_ext)
+{
+  GLfloat light_diffuse[]   = {1.0, 1.0, 1.0, 1.0};
+  GLfloat light_position[] = {0.5, -10.0, 1.0, 0.0};
   float dif_ext[3];
   int i;
 
