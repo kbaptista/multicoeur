@@ -377,7 +377,7 @@ int periods[]={2000000,1000000,500000,250000,100000,50000,10000};
 #define MaxDisplayPeriod (sizeof(periods)/sizeof(periods[0]))
 volatile int displayPeriod = MaxDisplayPeriod ; // 10 fps
 
-volatile int nbIterations = 0;
+volatile int nbIterations = 3; /*Modified by students*/
 int iterations[]={1,2,5,10,25,50,100,250,500,1000,10000};
 #define MaxNbIterations (sizeof(iterations)/sizeof(iterations[0]))
 
@@ -410,7 +410,7 @@ void printFPS()
 
 void updateDisplay(int i)
 {
-  //  printf("ouf!\n");
+  //printf("ouf!\n");
   keepCool = 0;
   gettimeofday (&lastDisplayTimeval,NULL);
   glutPostRedisplay();
@@ -434,54 +434,56 @@ void idle(void)
       nbFrames++;
 
 #ifdef PIX_SURFACE
-      if (colors && colors != DYNAMIC_COLORING)
-	texture = colors;
+      if (colors && colors != DYNAMIC_COLORING){
+      	texture = colors;
+      }
 
       sand_surface_refresh (colors != STATIC_COLORING);
 
       if (colors) {
-	// Refresh colors
-	glBindBuffer(GL_ARRAY_BUFFER, s_vbocid);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float),
-			s_vbo_color);
+      	// Refresh colors
+      	glBindBuffer(GL_ARRAY_BUFFER, s_vbocid);
+      	glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float),
+      			s_vbo_color);
       }
 #else
       sand_surface_refresh (colors == DYNAMIC_COLORING);
       
       if (colors) {
-	// Refresh colors
-	glBindBuffer(GL_ARRAY_BUFFER, s_vbocid);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float),
-			(colors == DYNAMIC_COLORING) ? s_vbo_color : colors);
-	
-	texture = (colors == DYNAMIC_COLORING) ? s_vbo_color : colors;
+      	// Refresh colors
+      	glBindBuffer(GL_ARRAY_BUFFER, s_vbocid);
+      	glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float),
+      			(colors == DYNAMIC_COLORING) ? s_vbo_color : colors);
+      	
+      	texture = (colors == DYNAMIC_COLORING) ? s_vbo_color : colors;
       }
 #endif
-      
-      // Refresh vertices
-      glBindBuffer(GL_ARRAY_BUFFER, s_vbovid);
-      glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float), s_vbo_vertex);
-      
-      
-      gettimeofday (&now,NULL);
-      int timediff = TIME_DIFF(lastDisplayTimeval,now);
-      if (timediff>=(periods[displayPeriod]) || firstCall )
-	{
-	  firstCall = 0;
-	  lastDisplayTimeval = now; 
-	  glutPostRedisplay ();
-	}
-      else
-	{
-	  keepCool = 1;
-	  //	  printf("displayPeriod-timediff  %d \n",(periods[displayPeriod]-timediff)/1000); 
-	  glutTimerFunc((1000+periods[displayPeriod]-timediff)/1000, updateDisplay,0);
-	}
+            
+        // Refresh vertices
+        glBindBuffer(GL_ARRAY_BUFFER, s_vbovid);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float), s_vbo_vertex);
+        
+        
+        gettimeofday (&now,NULL);
+        int timediff = TIME_DIFF(lastDisplayTimeval,now);
+        if (timediff>=(periods[displayPeriod]) || firstCall )
+      	{
+      	  firstCall = 0;
+      	  lastDisplayTimeval = now; 
+      	  glutPostRedisplay ();
+      	}
+            else
+      	{
+      	  keepCool = 1;
+      	  //	  printf("displayPeriod-timediff  %d \n",(periods[displayPeriod]-timediff)/1000); 
+      	  glutTimerFunc((1000+periods[displayPeriod]-timediff)/1000, updateDisplay,0);
+      	}
     }
 }
-  void initView (float *min_ext, float *max_ext)
-  {
-    GLfloat light_diffuse[]   = {1.0, 1.0, 1.0, 1.0};
+
+void initView (float *min_ext, float *max_ext)
+{
+  GLfloat light_diffuse[]   = {1.0, 1.0, 1.0, 1.0};
   GLfloat light_position[] = {0.5, 0.5, 1.0, 0.0};
   float dif_ext[3];
   int i;

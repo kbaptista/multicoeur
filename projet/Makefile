@@ -1,11 +1,7 @@
 
 ARCH    := $(shell uname -s | tr a-z A-Z)
 
-PROG	:=	sable
-
-PROG_SEQ  := seq
-
-PROG_PARALLEL := parallel
+PROG	:= sand
 
 CFLAGS	:=	-g -O3 -std=c99 -Wno-deprecated-declarations
 ifeq ($(ARCH),DARWIN)
@@ -13,25 +9,23 @@ CFLAGS	+=	-I /opt/local/include
 LDFLAGS	+=	-L /opt/local/include
 LDLIBS	+=	-framework GLUT -framework OpenGL -framework OpenCL
 else
-LDLIBS		:= -lm -lOpenCL -lGL -lGLU -lglut
+LDLIBS	:= -lm -lOpenCL -lGL -lGLU -lglut
 endif
 
 .phony: default clean
 
-default: $(PROG) $(PROG_SEQ) $(PROG_PARALLEL)
+default: $(PROG)
 
-$(PROG): main.o display.o
-	$(CC) -o $@ $(LDFLAGS) $^ $(LDLIBS)
+$(PROG): seq.o parallel.o sand.o display.o
+	$(CC) -o $@ $(LDFLAGS) -fopenmp $^ $(LDLIBS) 
 
-$(PROG_SEQ): seq.o display.o
-	$(CC) -o $@ $(LDFLAGS) $^ $(LDLIBS)
+sand.o: display.h seq.h parallel.h
 
-$(PROG_PARALLEL): parallel.o display.o
-	$(CC) -o $@ $(LDFLAGS) -fopenmp $^ $(LDLIBS)
+seq.o: seq.h
 
-main.o: display.h
+parallel.o: parallel.h
 
 display.o: display.h
 
 clean:
-	rm -rf *.o $(PROG) $(PROG_SEQ)
+	rm -rf *.o $(PROG) $(PROG_SEQ) $(PROG_PARALLEL) 

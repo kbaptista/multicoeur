@@ -1,5 +1,6 @@
 
 #include "display.h"
+#include "seq.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -13,7 +14,7 @@ unsigned ocean[DIM][DIM][2];
 unsigned table; //init 0 implicite
 
 // callback
-unsigned get (unsigned x, unsigned y)
+unsigned get_seq (unsigned x, unsigned y)
 {
   return ocean[y][x][table];
 }
@@ -73,7 +74,7 @@ static void copy(int table){
   }
 }
 
-float *compute(unsigned iterations){
+float *compute_seq(unsigned iterations){
   for (unsigned i = 0; i < iterations; i++){
     for (int y = 1; y < DIM-1; y++){
       for (int x = 1; x < DIM-1; x++){
@@ -95,14 +96,19 @@ float *compute(unsigned iterations){
   return DYNAMIC_COLORING;
 }
 
-int seq (int argc, char **argv)
+int seq (int argc, char **argv, int sand_init)
 {
-  sand_init_homogeneous();
-  //sand_init_center();
-
+  
+  if(!sand_init)
+  {
+    sand_init_center();
+  }else
+  {
+    sand_init_homogeneous();
+  }
   display_init (argc, argv,
                 DIM,              // dimension ( = x = y) du tas
                 MAX_HEIGHT,       // hauteur maximale du tas
-                get,              // callback func
-                compute);         // callback func
+                get_seq,              // callback func
+                compute_seq);         // callback func
 }
