@@ -54,7 +54,7 @@ float min_ext[3] = {0.0, 0.0, 0.0},
 
 GLuint glutWindowHandle = 0;
 GLdouble fovy, aspect, near_clip, far_clip;  
-                          /* parameters for gluPerspective() */
+/* parameters for gluPerspective() */
 GLfloat near;
 
 // mouse controls
@@ -124,8 +124,8 @@ static void add_sand_color (GLfloat x, GLfloat y, GLfloat z)
     if (ratio > 1.0)
       ratio = 1.0;
 
-    s_vbo_color[s_ci++] = ratio;
     s_vbo_color[s_ci++] = 0.0;
+    s_vbo_color[s_ci++] = ratio;
     s_vbo_color[s_ci++] = 1.0 - ratio;
   }
 #else
@@ -306,7 +306,7 @@ void display_draw_scene() {
   if(true_redisplay) {
     glLoadIdentity();
  
-   /* Define viewing transformation */
+    /* Define viewing transformation */
     gluLookAt((GLdouble)eye[0],(GLdouble)eye[1],(GLdouble)eye[2],
 	      (GLdouble)center[0],(GLdouble)center[1],(GLdouble)center[2],
 	      (GLdouble)up[0],(GLdouble)up[1],(GLdouble)up[2]);
@@ -365,8 +365,8 @@ extern void sable_animate (unsigned iterations);
 volatile int keepCool = 0;
 
 
-#define TIME_DIFF(t1, t2) \
-    ((t2.tv_sec - t1.tv_sec) * 1000000 + (t2.tv_usec - t1.tv_usec))
+#define TIME_DIFF(t1, t2)						\
+  ((t2.tv_sec - t1.tv_sec) * 1000000 + (t2.tv_usec - t1.tv_usec))
 
 
 
@@ -415,7 +415,6 @@ void updateDisplay(int i)
   gettimeofday (&lastDisplayTimeval,NULL);
   glutPostRedisplay();
 }
-
 void idle(void)
 {
   float *colors;
@@ -438,8 +437,8 @@ void idle(void)
       	texture = colors;
       }
 
-      sand_surface_refresh (colors != STATIC_COLORING);
 
+      sand_surface_refresh (colors != STATIC_COLORING);
       if (colors) {
       	// Refresh colors
       	glBindBuffer(GL_ARRAY_BUFFER, s_vbocid);
@@ -459,20 +458,20 @@ void idle(void)
       }
 #endif
             
-        // Refresh vertices
-        glBindBuffer(GL_ARRAY_BUFFER, s_vbovid);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float), s_vbo_vertex);
+      // Refresh vertices
+      glBindBuffer(GL_ARRAY_BUFFER, s_vbovid);
+      glBufferSubData(GL_ARRAY_BUFFER, 0, s_vertices*3*sizeof(float), s_vbo_vertex);
         
         
-        gettimeofday (&now,NULL);
-        int timediff = TIME_DIFF(lastDisplayTimeval,now);
-        if (timediff>=(periods[displayPeriod]) || firstCall )
+      gettimeofday (&now,NULL);
+      int timediff = TIME_DIFF(lastDisplayTimeval,now);
+      if (timediff>=(periods[displayPeriod]) || firstCall )
       	{
       	  firstCall = 0;
       	  lastDisplayTimeval = now; 
       	  glutPostRedisplay ();
       	}
-            else
+      else
       	{
       	  keepCool = 1;
       	  //	  printf("displayPeriod-timediff  %d \n",(periods[displayPeriod]-timediff)/1000); 
@@ -485,6 +484,7 @@ void initView (float *min_ext, float *max_ext)
 {
   GLfloat light_diffuse[]   = {1.0, 1.0, 1.0, 1.0};
   GLfloat light_position[] = {0.5, 0.5, 1.0, 0.0};
+
   float dif_ext[3];
   int i;
 
@@ -551,8 +551,8 @@ void appDestroy()
 
 void appKeyboard(unsigned char key, int x, int y)
 {
-    //this way we can exit the program cleanly
-    switch(key)
+  //this way we can exit the program cleanly
+  switch(key)
     {
     case '<' : translate_z -= 0.1; true_redisplay = 1; glutPostRedisplay(); break;
     case '>' : translate_z += 0.1; true_redisplay = 1; glutPostRedisplay(); break;
@@ -582,8 +582,8 @@ void appSpecialKeyboard(int key, int x, int y)
     case GLUT_KEY_UP:
       if (displayPeriod < MaxDisplayPeriod)
 	displayPeriod++;
-	  printf ("Setting display period to %d \n", displayPeriod);
-	  break;
+      printf ("Setting display period to %d \n", displayPeriod);
+      break;
     case GLUT_KEY_DOWN:
       if (displayPeriod > 0)
 	displayPeriod--;
@@ -606,15 +606,15 @@ void appSpecialKeyboard(int key, int x, int y)
 
 void appMouse(int button, int state, int x, int y)
 {
-    //handle mouse interaction for rotating/zooming the view
-    if (state == GLUT_DOWN) {
-        mouse_buttons |= 1<<button;
-    } else if (state == GLUT_UP) {
-        mouse_buttons = 0;
-    }
+  //handle mouse interaction for rotating/zooming the view
+  if (state == GLUT_DOWN) {
+    mouse_buttons |= 1<<button;
+  } else if (state == GLUT_UP) {
+    mouse_buttons = 0;
+  }
 
-    mouse_old_x = x;
-    mouse_old_y = y;
+  mouse_old_x = x;
+  mouse_old_y = y;
 }
 
 void appMotion(int x, int y)
