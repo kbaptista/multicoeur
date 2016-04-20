@@ -1,8 +1,8 @@
 
 #include "display.h"
-#include "seq.h"
 
 #include <math.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -16,7 +16,7 @@ unsigned table; //init 0 implicite
 static unsigned is_end = 1;
 
 // callback
-unsigned get_seq (unsigned x, unsigned y)
+unsigned get (unsigned x, unsigned y)
 {
   return ocean[y][x][table];
 }
@@ -58,6 +58,7 @@ static void sand_init_homogeneous()
 static void sand_init_center()
 {
   int center_value = 100000;
+
   for (int y = 0; y < DIM; y++){
     for (int x = 0; x < DIM; x++){
       ocean[y][x][0] = 0;
@@ -76,27 +77,50 @@ static void copy(int table){
   }
 }
 
-float *compute_seq(unsigned iterations){
+void traitement(int x, int y){
+  int mod4 = ocean[x][y][table]%4;
+  int div4 = ocean[x][y][table]/4;
+  #pragma omp critical
+  {
+    ocean[x][y][1-table] -= div4*4;
+    ocean[x-1][y][1-table] += div4;
+    ocean[x+1][y][1-table] += div4;
+    ocean[x][y-1][1-table] += div4;
+    ocean[x][y+1][1-table] += div4;
+    is_end = 1;
+  }
+}
+
+float *compute(unsigned iterations)
+{
   if(!is_end){
     return DYNAMIC_COLORING;
   }
   is_end = 0;
 
   for (unsigned i = 0; i < iterations; i++){
-    for (int x = 1; x < DIM-1; x++){
+    
+    for (int x = 1; x < DIM-1; x =x+2){
+      #pragma omp task
       for (int y = 1; y < DIM-1; y++){
-        if(ocean[y][x][table] >= MAX_HEIGHT)
+        if(ocean[x][y][table] >= MAX_HEIGHT)
         {
-            int mod4 = ocean[x][y][table]%4;
-            int div4 = ocean[x][y][table]/4;
-            ocean[x][y][1-table] -= div4*4;
-            ocean[x-1][y][1-table] += div4;
-            ocean[x+1][y][1-table] += div4;
-            ocean[x][y-1][1-table] += div4;
-            ocean[x][y+1][1-table] += div4;
+          traitement(x,y);
         }
-      } 
+      }
     }
+
+    for (int x = 2; x < DIM-1; x = x+2){
+      #pragma omp task
+      for (int y = DIM-2; y > 0 ; y--){
+        if(ocean[x][y][table] >= MAX_HEIGHT)
+        {
+          traitement(x,y);
+        }
+      }
+    }
+
+    #pragma omp barrier
     table = 1 - table;
     if(is_end){
       copy(table);
@@ -105,18 +129,24 @@ float *compute_seq(unsigned iterations){
   return DYNAMIC_COLORING;
 }
 
-int seq (int argc, char **argv, int sand_init)
-{  
-  if(!sand_init)
+int parallel_task (int argc, char **argv, int sand_init)
+{
+  #pragma omp parallel
+
+  #pragma omp single
   {
-    sand_init_center();
-  }else
-  {
-    sand_init_homogeneous();
+    if(!sand_init)
+    {
+      sand_init_center();
+    }else
+    {
+      sand_init_homogeneous();
+    }
+    
+    display_init (argc, argv,
+                  DIM,              // dimension ( = x = y) du tas
+                  MAX_HEIGHT,       // hauteur maximale du tas
+                  get,              // callback func
+                  compute);         // callback func
   }
-  display_init (argc, argv,
-                DIM,              // dimension ( = x = y) du tas
-                MAX_HEIGHT,       // hauteur maximale du tas
-                get_seq,              // callback func
-                compute_seq);         // callback func
 }

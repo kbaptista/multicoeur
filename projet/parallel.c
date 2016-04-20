@@ -19,9 +19,7 @@ unsigned ocean[DIM][DIM][2];
 
 unsigned table; //init 0 implicite
 
-static unsigned turn = 1;
-unsigned long temps;
-  struct timeval t_start, t_end;
+static unsigned is_end = 1;
 
 // callback
 unsigned get_parallel (unsigned x, unsigned y)
@@ -90,14 +88,10 @@ static void copy(int table){
 }
 
 static float *compute_parallel(unsigned iterations){
-  if(!turn){
-    if(temps == 0.0){
-      temps = TIME_DIFF(t_start,t_end);
-      printf("\ntemps total : %lu microsecondes.\n",temps);
-    }
+  if(!is_end){
     return DYNAMIC_COLORING;
   }
-  turn = 0;
+  is_end = 0;
 
 #pragma omp parallel for schedule(dynamic) collapse(3)
   for (unsigned i = 0; i < iterations; i++){
@@ -112,13 +106,14 @@ static float *compute_parallel(unsigned iterations){
             ocean[y+1][x][1-table] += div4;
             ocean[y][x-1][1-table] += div4;
             ocean[y][x+1][1-table] += div4;
-            turn = 1;
+            is_end = 1;
         }
       } 
     }
     table = 1 - table;
-    copy(table);
-    gettimeofday(&t_end,NULL);
+    if(is_end){
+      copy(table);
+    }
   }
   return DYNAMIC_COLORING;
 }
@@ -126,8 +121,6 @@ static float *compute_parallel(unsigned iterations){
 int parallel (int argc, char **argv, int sand_init)
 {
   omp_set_nested(1);
-
-  gettimeofday(&t_start,NULL);
 
   if(!sand_init)
   {

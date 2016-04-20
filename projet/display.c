@@ -430,6 +430,7 @@ void idle(void)
       colors = compute_func_ptr (iterations[nbIterations]);
       gettimeofday (&t2,NULL);
       computeTime += TIME_DIFF(t1,t2);
+
       nbFrames++;
 
 #ifdef PIX_SURFACE
@@ -545,7 +546,9 @@ void appDestroy()
   if(glutWindowHandle)
     glutDestroyWindow(glutWindowHandle);
 
-  exit(0);
+  /* Modified by students*/
+  //exit(0);
+  return;
 }
 
 
