@@ -546,9 +546,7 @@ void appDestroy()
   if(glutWindowHandle)
     glutDestroyWindow(glutWindowHandle);
 
-  /* Modified by students*/
-  //exit(0);
-  return;
+  exit(0);
 }
 
 

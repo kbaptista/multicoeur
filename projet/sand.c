@@ -11,8 +11,9 @@
 int main (int argc, char **argv)
 {
 
-	//	parallel_task(argc,argv,1);
-	seq(argc,argv,1);
+	//parallel(argc,argv,1);
+	parallel_task(argc,argv,1);
+	//seq(argc,argv,1);
 	return 0;
 
 	if(argc<2){

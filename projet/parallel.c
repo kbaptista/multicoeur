@@ -9,7 +9,7 @@
 #include <sys/time.h>
 
 
-#define DIM 128
+#define DIM 512
 #define MAX_HEIGHT  4
 
 #define TIME_DIFF(t1, t2) \
@@ -93,10 +93,12 @@ static float *compute_parallel(unsigned iterations){
   }
   is_end = 0;
 
-#pragma omp parallel for schedule(dynamic) collapse(3)
+
   for (unsigned i = 0; i < iterations; i++){
+    #pragma omp parallel for collapse(2)
     for (int x = 1; x < DIM-1; x++){
       for (int y = 1; y < DIM-1; y++){
+        //printf("%d et %d\n",omp_get_thread_num(),omp_get_num_threads());
         if(ocean[y][x][table] >= MAX_HEIGHT)
         {
             int mod4 = ocean[y][x][table]%4;

@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define DIM 128
+#define DIM 512
 #define MAX_HEIGHT  4
 
 unsigned ocean[DIM][DIM][2];
@@ -76,6 +76,20 @@ static void copy(int table){
   }
 }
 
+static void traitement(int x, int y){
+  int mod4 = ocean[x][y][table]%4;
+  int div4 = ocean[x][y][table]/4;
+  #pragma omp critical
+  {
+    ocean[x][y][1-table] -= div4*4;
+    ocean[x-1][y][1-table] += div4;
+    ocean[x+1][y][1-table] += div4;
+    ocean[x][y-1][1-table] += div4;
+    ocean[x][y+1][1-table] += div4;
+    is_end = 1;
+  }
+}
+
 float *compute_seq(unsigned iterations){
   if(!is_end){
     return DYNAMIC_COLORING;
@@ -83,20 +97,25 @@ float *compute_seq(unsigned iterations){
   is_end = 0;
 
   for (unsigned i = 0; i < iterations; i++){
-    for (int x = 1; x < DIM-1; x++){
+    for (int x = 1; x < DIM-1; x=x+2){
       for (int y = 1; y < DIM-1; y++){
         if(ocean[y][x][table] >= MAX_HEIGHT)
         {
-            int mod4 = ocean[x][y][table]%4;
-            int div4 = ocean[x][y][table]/4;
-            ocean[x][y][1-table] -= div4*4;
-            ocean[x-1][y][1-table] += div4;
-            ocean[x+1][y][1-table] += div4;
-            ocean[x][y-1][1-table] += div4;
-            ocean[x][y+1][1-table] += div4;
+            traitement(x,y);
         }
       } 
     }
+
+    for (int x = 2; x < DIM-1; x=x+2){
+      for (int y = DIM-2; y > 0; y--){
+        if(ocean[y][x][table] >= MAX_HEIGHT)
+        {
+            traitement(x,y);
+        }
+      }
+    }
+
+    #pragma omp barrier
     table = 1 - table;
     if(is_end){
       copy(table);
