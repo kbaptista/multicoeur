@@ -13,16 +13,20 @@
 
 unsigned ocean[DIM][DIM][2];
 
+// indice indiquant laquelle des deux tables est actuellement en lecture.
 unsigned table; //init 0 implicite
 
+//booléen qui change après le dernier traitement, indique donc si compute a encore du traitement à faire ou non.
 static unsigned is_end = 1;
 
-// callback
-unsigned get (unsigned x, unsigned y)
-{
-  return ocean[y][x][table];
-}
+// ------------------------------------------------------------------------------
+// -------------               Fonctions Utilitaires                -------------
+// ------------------------------------------------------------------------------
 
+/** 
+  * Print matrices time after time on the shell.
+  * Is adapted to print values until 999 without deformations.
+*/
 static void print(int table)
 {
     for (int y = 0; y < DIM; y++)
@@ -47,6 +51,9 @@ static void print(int table)
     printf("\n");
 }
 
+/** 
+  * initialise matrices with 5 grain in every case.
+*/
 static void sand_init_homogeneous()
 {
 #pragma omp parallel for schedule(static) collapse(2)
@@ -59,6 +66,9 @@ static void sand_init_homogeneous()
   }
 }
 
+/** 
+  * initialise matrices with no one grain except in the middle case which have 100000 grain.
+*/
 static void sand_init_center()
 {
   int center_value = 100000;
@@ -73,6 +83,11 @@ static void sand_init_center()
   ocean[DIM/2][DIM/2][1] = center_value;
 }
 
+/** 
+  * initialise matrices : 
+  * 0 means centering configuration
+  * 1 means homogeneous configuration
+*/
 void sand_init (int init)
 {
   if(!init)
@@ -84,7 +99,19 @@ void sand_init (int init)
     sand_init_homogeneous();
   }
 }
+// ------------------------------------------------------------------------------
+// -------------              Fonctions de traitement               -------------
+// ------------------------------------------------------------------------------
 
+// callback
+unsigned get (unsigned x, unsigned y)
+{
+  return ocean[y][x][table];
+}
+
+/** 
+  * Copy all values from table to 1 - table
+*/
 static void copy(int table){
   #pragma omp parallel for collapse(2)
   for (int y = 0; y < DIM; y++){
@@ -94,15 +121,21 @@ static void copy(int table){
   }
 }
 
+/** 
+  * Applied modifications into 1-table for ocean[x][y] sandpile.
+*/
 void compute_cell(int x, int y, int div4){
   ocean[x][y][1-table] -= div4*4;
-    ocean[x-1][y][1-table] += div4;
-    ocean[x+1][y][1-table] += div4;
-    ocean[x][y-1][1-table] += div4;
-    ocean[x][y+1][1-table] += div4;
-    is_end = 1;
+  ocean[x-1][y][1-table] += div4;
+  ocean[x+1][y][1-table] += div4;
+  ocean[x][y-1][1-table] += div4;
+  ocean[x][y+1][1-table] += div4;
+  is_end = 1;
 }
 
+/** 
+  * Compute fonction for sequentiel treatment
+*/
 float *compute_seq(unsigned iterations){
   if(!is_end){
     return DYNAMIC_COLORING;
@@ -114,8 +147,8 @@ float *compute_seq(unsigned iterations){
       for (int y = 1; y < DIM-1; y++){
         if(ocean[y][x][table] >= MAX_HEIGHT)
         {
-        int div4 = ocean[x][y][table]/4;
-            compute_cell(x,y,div4);
+          int div4 = ocean[x][y][table]/4;
+          compute_cell(x,y,div4);
         }
       } 
     }
@@ -124,7 +157,7 @@ float *compute_seq(unsigned iterations){
         if(ocean[y][x][table] >= MAX_HEIGHT)
         {
           int div4 = ocean[x][y][table]/4;
-            compute_cell(x,y,div4);
+          compute_cell(x,y,div4);
         }
       }
     }
@@ -136,6 +169,9 @@ float *compute_seq(unsigned iterations){
   return DYNAMIC_COLORING;
 }
 
+/** 
+  * Compute fonction for collapsed treatment
+*/
 float *compute_parallel(unsigned iterations){
   if(!is_end){
     return DYNAMIC_COLORING;
@@ -163,16 +199,21 @@ float *compute_parallel(unsigned iterations){
   return DYNAMIC_COLORING;
 }
 
-
+/** 
+  * Adapted treatment to one case, with task specificity
+*/
 void treatment_task(int x, int y){
   int div4 = ocean[x][y][table]/4;
 
-  #pragma omp critical
+  //#pragma omp critical
   {
     compute_cell(x, y, div4);
   }
 }
 
+/** 
+  * Compute fonction for task treatment
+*/
 float *compute_task(unsigned iterations)
 {
   if(!is_end){
@@ -180,14 +221,12 @@ float *compute_task(unsigned iterations)
   }
   is_end = 0;
 
-
   for (unsigned i = 0; i < iterations; i++){
     for (int x = 1; x < DIM-1; x =x+2){
       for (int y = 1; y < DIM-1; y++){
-        #pragma omp task
+        #pragma omp task depend(in:ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x-1][y][table], ocean[x+1][y][table]) depend(out:ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x-1][y][table], ocean[x+1][y][table])
         if(ocean[x][y][table] >= MAX_HEIGHT)
         {
-          //depend(in:ocean[x][y-1][table], ocean[x][y+1][table]) depend(out:ocean[x][y-1][table], ocean[x][y+1][table])
           treatment_task(x,y);
         }
       }
@@ -195,10 +234,9 @@ float *compute_task(unsigned iterations)
 
     for (int x = 2; x < DIM-1; x = x+2){
       for (int y = DIM-2; y > 0 ; y--){
-        #pragma omp task
+        #pragma omp task depend(in:ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x-1][y][table], ocean[x+1][y][table]) depend(out:ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x-1][y][table], ocean[x+1][y][table])
         if(ocean[x][y][table] >= MAX_HEIGHT)
         {
-          //depend(in:ocean[x][y-1][table], ocean[x][y+1][table]) depend(out:ocean[x][y-1][table], ocean[x][y+1][table])
           treatment_task(x,y);
         }
       }
@@ -212,6 +250,10 @@ float *compute_task(unsigned iterations)
   }
   return DYNAMIC_COLORING;
 }
+
+// ------------------------------------------------------------------------------
+// ------------- Fonction initiale dépendante de la méthode appelée -------------
+// ------------------------------------------------------------------------------
 
 int seq (int argc, char **argv)
 {
@@ -247,6 +289,9 @@ int parallel_task (int argc, char **argv)
   }
 }
 
+// ------------------------------------------------------------------------------
+// -------------        Fonctions de traitement des Arguments       -------------
+// ------------------------------------------------------------------------------
 
 char * man = "usage : ./sand <INITIALIZATION> <SIZE> <ALGORITHM> \n\n\t-INITIALIZATION can be :\n\t\t-homogeneous or h : it starts the homogeneous case ;\n\t\t-centered or c : it starts the centered case ;\n\t-SIZE can be :\n\t\t-128 ;\n\t\t-512 ;\n\t-ALGORITHM can be :\n\t\t-sequential or s : it runs the sequential method ;\n\t\t-parallel or p : it runs the parallel method ;\n\t\t-task or t : it runs the parallel task method ;\n";
 
@@ -295,7 +340,6 @@ void init_compare(int argc, char **argv){
   	printf("Case Homogeneous\n");
   	size_compare(argc, argv, 1);
   }
-  
   else if(!strcmp(argv[1], "centered") || !strcmp(argv[1], "c")){
   	printf("Case Centered\n");
   	size_compare(argc, argv, 0);
@@ -305,6 +349,10 @@ void init_compare(int argc, char **argv){
   	return;
   }
 }
+
+// ------------------------------------------------------------------------------
+// -------------                         MAIN                       -------------
+// ------------------------------------------------------------------------------
 
 int main (int argc, char **argv)
 {
