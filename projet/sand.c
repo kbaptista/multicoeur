@@ -1,6 +1,7 @@
 
 #include "parallel.h"
 #include "seq.h"
+#include "parallel_task.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,14 +17,18 @@ int main (int argc, char **argv)
 		return 0;
 	}
 
-  if(!strcmp(argv[1], "homogeneous") || !strcmp(argv[1], "h") || atoi(argv[1])==0){
-    if(!strcmp(argv[2], "sequential") || !strcmp(argv[2], "s") || atoi(argv[2])==0){
+  if(!strcmp(argv[1], "homogeneous") || !strcmp(argv[1], "h")){
+  	printf("Case Homogeneous\n");
+    if(!strcmp(argv[2], "sequential") || !strcmp(argv[2], "s")){
+    	printf("Treatement Sequential\n\n");
       seq(argc,argv,1);
     }
-    else if(!strcmp(argv[2], "for") || !strcmp(argv[2], "f") || atoi(argv[2])==1){
+    else if(!strcmp(argv[2], "for") || !strcmp(argv[2], "f")){
+    	printf("Treatement Parallel For\n\n");
       parallel(argc,argv,1);
     }
-    else if(!strcmp(argv[2], "task") || !strcmp(argv[2], "t") || atoi(argv[2])==3){
+    else if(!strcmp(argv[2], "task") || !strcmp(argv[2], "t")){
+    	printf("Treatement Parallel Task\n\n");
       parallel_task(argc,argv,1);
     }
     
@@ -32,14 +37,18 @@ int main (int argc, char **argv)
 	  }
   }
   
-  else if(!strcmp(argv[1], "centered") || !strcmp(argv[1], "c") || atoi(argv[1])==1){
-    if(!strcmp(argv[2], "sequential") || !strcmp(argv[2], "s") || atoi(argv[2])==0){
+  else if(!strcmp(argv[1], "centered") || !strcmp(argv[1], "c")){
+  	printf("Case Centered\n");
+    if(!strcmp(argv[2], "sequential") || !strcmp(argv[2], "s")){
+    	printf("Treatement Sequential\n\n");
       seq(argc,argv,0);
     }
-    else if(!strcmp(argv[2], "parallel") || !strcmp(argv[2], "p") || atoi(argv[2])==1){
+    else if(!strcmp(argv[2], "for") || !strcmp(argv[2], "f")){
+    	printf("Treatement Parallel For\n\n");
       parallel(argc,argv,0);
     }
-    else if(!strcmp(argv[2], "task") || !strcmp(argv[2], "t") || atoi(argv[2])==3){
+    else if(!strcmp(argv[2], "task") || !strcmp(argv[2], "t")){
+    	printf("Treatement Parallel Task\n\n");
       parallel_task(argc,argv,0);
     }
     else{
