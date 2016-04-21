@@ -5,6 +5,7 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <xmmintrin.h>
 
 #define DIM 512
 #define MAX_HEIGHT  4
@@ -80,8 +81,6 @@ static void copy(int table){
 
 void traitement(int x, int y){
   int div4 = ocean[x][y][table]/4;
-
-  //#pragma omp critical
   {
     ocean[x][y][1-table] -= div4*4;
     ocean[x-1][y][1-table] += div4;
@@ -99,16 +98,14 @@ float *compute(unsigned iterations)
   }
   is_end = 0;
 
-
   for (unsigned i = 0; i < iterations; i++){
     for (int x = 1; x < DIM-1; x =x+2){
       
       #pragma omp task firstprivate(ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x+1][y][table], ocean[x-1][y][table]) lastprivate(ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x+1][y][table], ocean[x-1][y][table])
       for (int y = 1; y < DIM-1; y++){
-        //#pragma omp task //depend(in:ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x+1][y][table], ocean[x-1][y][table]) //depend(out:ocean[x][y-1][table], ocean[x][y+1][table])
         if(ocean[x][y][table] >= MAX_HEIGHT)
         {
-          //depend(in:ocean[x][y-1][table], ocean[x][y+1][table]) depend(out:ocean[x][y-1][table], ocean[x][y+1][table])
+
           traitement(x,y);
         }
       }
@@ -120,13 +117,11 @@ float *compute(unsigned iterations)
         
         if(ocean[x][y][table] >= MAX_HEIGHT)
         {
-          //depend(in:ocean[x][y-1][table], ocean[x][y+1][table]) depend(out:ocean[x][y-1][table], ocean[x][y+1][table])
           traitement(x,y);
         }
       }
     }
 
-    #pragma omp taskwait
     table = 1 - table;
     if(is_end){
       copy(table);
@@ -137,9 +132,7 @@ float *compute(unsigned iterations)
 
 int parallel_task (int argc, char **argv, int sand_init)
 {
-  #pragma omp parallel
 
-  #pragma omp single
   {
     if(!sand_init)
     {
