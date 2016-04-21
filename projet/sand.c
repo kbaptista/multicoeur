@@ -400,7 +400,7 @@ void init_compare(int argc, char **argv){
 int main (int argc, char **argv)
 {
 
-	if(argc<3){
+	if(argc<2){
     sand_init(1);
 		seq(argc,argv);
 		return 0;
