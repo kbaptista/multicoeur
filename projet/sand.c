@@ -56,7 +56,7 @@ static void print(int table)
 */
 static void sand_init_homogeneous()
 {
-#pragma omp parallel for schedule(static) collapse(2)
+//#pragma omp parallel for schedule(static) collapse(2)
 
   for (int y = 0; y < DIM; y++){
     for (int x = 0; x < DIM; x++){
@@ -72,7 +72,7 @@ static void sand_init_homogeneous()
 static void sand_init_center()
 {
   int center_value = 100000;
-#pragma omp parallel for schedule(static) collapse(2)
+//#pragma omp parallel for schedule(static) collapse(2)
   for (int y = 0; y < DIM; y++){
     for (int x = 0; x < DIM; x++){
       ocean[y][x][0] = 0;
@@ -178,7 +178,7 @@ float *compute_parallel(unsigned iterations){
   }
   is_end = 0;
 
-
+/*
   for (unsigned i = 0; i < iterations; i++){
     #pragma omp parallel for collapse(2)
     for (int x = 1; x < DIM-1; x++){
@@ -187,10 +187,37 @@ float *compute_parallel(unsigned iterations){
         if(ocean[y][x][table] >= MAX_HEIGHT)
         {
             int div4 = ocean[y][x][table]/4;
-            compute_cell(x, y, div4);
+            #pragma omp critical
+            compute_cell(y, x, div4);
         }
       } 
     }
+    */
+
+  for (unsigned i = 0; i < iterations; i++){
+    #pragma omp parallel for collapse(2)
+    for (int x = 1; x < DIM-1; x=x+2){
+      for (int y = 1; y < DIM-1; y++){
+        if(ocean[y][x][table] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x][y][table]/4;
+            #pragma omp critical
+          compute_cell(x,y,div4);
+        }
+      } 
+    }
+    #pragma omp parallel for collapse(2)
+    for (int x = 2; x < DIM-1; x=x+2){
+      for (int y = DIM-2; y > 0; y--){
+        if(ocean[y][x][table] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x][y][table]/4;
+            #pragma omp critical
+          compute_cell(x,y,div4);
+        }
+      }
+    }
+
     table = 1 - table;
     if(is_end){
       copy(table);
@@ -221,6 +248,21 @@ float *compute_task(unsigned iterations)
   }
   is_end = 0;
 
+  // 1 passage 
+/*
+  for (unsigned i = 0; i < iterations; i++){
+    for (int x = 1; x < DIM-1; x ++){
+      for (int y = 1; y < DIM-1; y++){
+        #pragma omp task depend(in:ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x-1][y][table], ocean[x+1][y][table]) depend(out:ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x-1][y][table], ocean[x+1][y][table])
+        if(ocean[x][y][table] >= MAX_HEIGHT)
+        {
+          treatment_task(x,y);
+        }
+      }
+    }
+*/
+
+    // 2 passage (pour optimiser le cache ?)
   for (unsigned i = 0; i < iterations; i++){
     for (int x = 1; x < DIM-1; x =x+2){
       for (int y = 1; y < DIM-1; y++){
@@ -266,7 +308,7 @@ int seq (int argc, char **argv)
 
 int parallel (int argc, char **argv)
 {
-  omp_set_nested(1);
+  //omp_set_nested(1);
   display_init (argc, argv,
                 DIM,                // dimension ( = x = y) du tas
                 MAX_HEIGHT,         // hauteur maximale du tas
@@ -297,7 +339,8 @@ char * man = "usage : ./sand <INITIALIZATION> <SIZE> <ALGORITHM> \n\n\t-INITIALI
 
 /* Add your treatment choices here */
 void treatment_compare(int argc, char **argv, int init_compare_res, int size_compare_res){
-	if(!strcmp(argv[3], "sequential") || !strcmp(argv[3], "s")){
+
+  if(!strcmp(argv[3], "sequential") || !strcmp(argv[3], "s")){
     	printf("Treatment Sequential\n\n");
       sand_init(init_compare_res);
       seq(argc, argv);

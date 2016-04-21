@@ -4,7 +4,7 @@ ARCH    := $(shell uname -s | tr a-z A-Z)
 PROG	:= sand
 #COMPARER := comparer
 
-CFLAGS	:=	-g -O3 -std=c99 -Wno-deprecated-declarations -fopenmp
+CFLAGS	:=	-g -std=c99 -Wno-deprecated-declarations -fopenmp
 ifeq ($(ARCH),DARWIN)
 CFLAGS	+=	-I /opt/local/include 
 LDFLAGS	+=	-L /opt/local/include

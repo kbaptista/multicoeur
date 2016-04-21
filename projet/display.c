@@ -126,7 +126,7 @@ static void add_sand_color (GLfloat x, GLfloat y, GLfloat z)
 
     s_vbo_color[s_ci++] = 0.0;
     s_vbo_color[s_ci++] = ratio;
-    s_vbo_color[s_ci++] = 1.0 - ratio;
+    s_vbo_color[s_ci++] = ratio;
   }
 #else
   float ratio = y / EXTENT;
@@ -136,7 +136,7 @@ static void add_sand_color (GLfloat x, GLfloat y, GLfloat z)
 
   s_vbo_color[s_ci++] = ratio;
   s_vbo_color[s_ci++] = 0.0;
-  s_vbo_color[s_ci++] = 1.0 - ratio;
+  s_vbo_color[s_ci++] = ratio;
 #endif
 }
 
