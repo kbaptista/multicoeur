@@ -124,8 +124,9 @@ float *compute_seq(unsigned iterations){
   return DYNAMIC_COLORING;
 }
 
-int seq (int argc, char **argv, int sand_init)
+int seq (int argc, char **argv, int sand_init, int size)
 {  
+  
   if(!sand_init)
   {
     sand_init_center();

@@ -119,9 +119,9 @@ static float *compute_parallel(unsigned iterations){
   }
   return DYNAMIC_COLORING;
 }
-
 int parallel (int argc, char **argv, int sand_init)
 {
+  DIM = size ;
   omp_set_nested(1);
 
   if(!sand_init)
