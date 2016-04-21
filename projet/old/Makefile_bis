@@ -1,0 +1,25 @@
+CC := gcc
+ARCH := $(shell uname -s | tr a-z A-Z)
+BOUSIN := $(shell uname -n)
+
+#SRC     :=      $(wildcard *main.c)
+#PROG := sable async-sable sync-sable
+PROG    := $(patsubst %sand.c, %sand, $(wildcard *sand.c))
+CFLAGS := -g -O2 -std=gnu99 -Wno-deprecated-declarations -fopenmp
+ifeq ($(ARCH),DARWIN)
+CFLAGS += -I /opt/local/include
+LDFLAGS += -L /opt/local/include
+LDLIBS += -framework GLUT -framework OpenGL -framework OpenCL
+else
+LDLIBS  := -lOpenCL -lGL -lGLU -lglut -lm
+endif
+
+.phony: default clean
+
+default: $(PROG) 
+
+sand: sand.o display.o
+ $(CC) -o $@ $(LDFLAGS) $^ $(LDLIBS)
+
+%sand: %sand.o display.o parallel.o parallel_task.o seq.o
+ $(CC) -g -Wall -std=gnu99 -fopenmp -o $@ $(LDFLAGS) $^ $(LDLIBS)

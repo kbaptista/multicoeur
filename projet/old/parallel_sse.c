@@ -98,21 +98,21 @@ float *compute(unsigned iterations)
   }
   is_end = 0;
 
+  
+  
+
   for (unsigned i = 0; i < iterations; i++){
+
     for (int x = 1; x < DIM-1; x =x+2){
-      
-      #pragma omp task firstprivate(ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x+1][y][table], ocean[x-1][y][table]) lastprivate(ocean[x][y][table], ocean[x][y-1][table], ocean[x][y+1][table], ocean[x+1][y][table], ocean[x-1][y][table])
       for (int y = 1; y < DIM-1; y++){
         if(ocean[x][y][table] >= MAX_HEIGHT)
         {
-
           traitement(x,y);
         }
       }
     }
 
     for (int x = 2; x < DIM-1; x = x+2){
-      #pragma omp task 
       for (int y = DIM-2; y > 0 ; y--){
         
         if(ocean[x][y][table] >= MAX_HEIGHT)
