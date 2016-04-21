@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define DIM 128
+#define DIM 512
 #define MAX_HEIGHT  4
 
 unsigned ocean[DIM][DIM][2];
@@ -70,6 +70,7 @@ static void sand_init_center()
 }
 
 static void copy(int table){
+  #pragma omp parallel for collapse(2)
   for (int y = 0; y < DIM; y++){
     for (int x = 0; x < DIM; x++){
       ocean[y][x][1-table] = ocean[y][x][table];
@@ -78,8 +79,8 @@ static void copy(int table){
 }
 
 void traitement(int x, int y){
-  int mod4 = ocean[x][y][table]%4;
   int div4 = ocean[x][y][table]/4;
+
   #pragma omp critical
   {
     ocean[x][y][1-table] -= div4*4;
@@ -98,29 +99,31 @@ float *compute(unsigned iterations)
   }
   is_end = 0;
 
+
   for (unsigned i = 0; i < iterations; i++){
-    
     for (int x = 1; x < DIM-1; x =x+2){
-      #pragma omp task
       for (int y = 1; y < DIM-1; y++){
+        #pragma omp task
         if(ocean[x][y][table] >= MAX_HEIGHT)
         {
+          //depend(in:ocean[x][y-1][table], ocean[x][y+1][table]) depend(out:ocean[x][y-1][table], ocean[x][y+1][table])
           traitement(x,y);
         }
       }
     }
 
     for (int x = 2; x < DIM-1; x = x+2){
-      #pragma omp task
       for (int y = DIM-2; y > 0 ; y--){
+        #pragma omp task
         if(ocean[x][y][table] >= MAX_HEIGHT)
         {
+          //depend(in:ocean[x][y-1][table], ocean[x][y+1][table]) depend(out:ocean[x][y-1][table], ocean[x][y+1][table])
           traitement(x,y);
         }
       }
     }
 
-    #pragma omp barrier
+    #pragma omp taskwait
     table = 1 - table;
     if(is_end){
       copy(table);

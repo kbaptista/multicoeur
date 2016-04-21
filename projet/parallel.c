@@ -9,7 +9,7 @@
 #include <sys/time.h>
 
 
-#define DIM 512
+#define DIM 128
 #define MAX_HEIGHT  4
 
 #define TIME_DIFF(t1, t2) \
@@ -80,6 +80,7 @@ static void sand_init_center()
 
 
 static void copy(int table){
+  #pragma omp parallel for collapse(2)
   for (int y = 0; y < DIM; y++){
     for (int x = 0; x < DIM; x++){
       ocean[y][x][1-table] = ocean[y][x][table];
@@ -101,7 +102,6 @@ static float *compute_parallel(unsigned iterations){
         //printf("%d et %d\n",omp_get_thread_num(),omp_get_num_threads());
         if(ocean[y][x][table] >= MAX_HEIGHT)
         {
-            int mod4 = ocean[y][x][table]%4;
             int div4 = ocean[y][x][table]/4;
             ocean[y][x][1-table] -= div4*4;
             ocean[y-1][x][1-table] += div4;

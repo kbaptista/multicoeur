@@ -77,7 +77,7 @@ static void copy(int table){
 }
 
 static void traitement(int x, int y){
-  int mod4 = ocean[x][y][table]%4;
+  //int mod4 = ocean[x][y][table]%4;
   int div4 = ocean[x][y][table]/4;
   #pragma omp critical
   {
