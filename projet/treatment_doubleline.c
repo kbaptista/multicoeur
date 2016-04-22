@@ -1,11 +1,95 @@
-#include "treatments.h"
+#include "display.h"
+#include "treatment_doubleline.h"
+
+#include <omp.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+
+#define DIM 128
+#define MAX_HEIGHT  4
+
+#define TIME_DIFF(t1, t2) \
+        ((t2.tv_sec - t1.tv_sec) * 1000000 + (t2.tv_usec - t1.tv_usec))
+
+unsigned ocean[DIM][DIM][2];
+
+// indice indiquant laquelle des deux tables est actuellement en lecture.
+unsigned table; //init 0 implicite
+
+//booléen qui change après le dernier traitement, indique donc si compute a encore du traitement à faire ou non.
+static unsigned is_end = 1;
+
+// ------------------------------------------------------------------------------
+// -------------               Fonctions Utilitaires                -------------
+// ------------------------------------------------------------------------------
+
+/** 
+  * Print matrices time after time on the shell.
+  * Is adapted to print values until 999 without deformations.
+*/
+static void print(int table)
+{
+    for (int y = 0; y < DIM; y++)
+    {
+      for (int x = 0; x < DIM; x++) 
+      {
+        if(ocean[y][x][table] < 10)
+        {
+          printf("  %d ",ocean[y][x][table]);
+        }
+        else if (ocean[y][x][table] < 100)
+        {
+          printf(" %d ",ocean[y][x][table]);
+        }
+        else
+        {
+          printf("%d ",ocean[y][x][table]);
+        }
+      }
+      printf("\n");
+    }
+    printf("\n");
+}
+
+/** 
+  * initialise matrices with 5 grain in every case.
+*/
+void dl_sand_init_homogeneous()
+{
+//#pragma omp parallel for schedule(static) collapse(2)
+
+  for (int y = 0; y < DIM; y++){
+    for (int x = 0; x < DIM; x++){
+      ocean[y][x][0] = 5;
+      ocean[y][x][1] = 5;
+    }
+  }
+}
+
+/** 
+  * initialise matrices with no one grain except in the middle case which have 100000 grain.
+*/
+void dl_sand_init_center()
+{
+  int center_value = 100000;
+//#pragma omp parallel for schedule(static) collapse(2)
+  for (int y = 0; y < DIM; y++){
+    for (int x = 0; x < DIM; x++){
+      ocean[y][x][0] = 0;
+      ocean[y][x][1] = 0;
+    }
+  }
+  ocean[DIM/2][DIM/2][0] = center_value;
+  ocean[DIM/2][DIM/2][1] = center_value;
+}
 
 // ------------------------------------------------------------------------------
 // -------------              Fonctions de traitement               -------------
 // ------------------------------------------------------------------------------
 
 // callback
-unsigned get (unsigned x, unsigned y)
+unsigned dl_get (unsigned x, unsigned y)
 {
   return ocean[y][x][table];
 }
@@ -25,7 +109,7 @@ static void copy(int table){
 /** 
   * Applied modifications into 1-table for ocean[x][y] sandpile.
 */
-void compute_cell(int x, int y, int div4){
+static void compute_cell(int x, int y, int div4){
   ocean[x][y][1-table] -= div4*4;
   ocean[x-1][y][1-table] += div4;
   ocean[x+1][y][1-table] += div4;
@@ -37,7 +121,35 @@ void compute_cell(int x, int y, int div4){
 /** 
   * Compute fonction for sequentiel treatment
 */
-float *compute_seq(unsigned iterations){
+float * dl_compute_seq(unsigned iterations){
+  if(!is_end){
+    return DYNAMIC_COLORING;
+  }
+  is_end = 0;
+
+  for (unsigned i = 0; i < iterations; i++){
+    for (int x = 1; x < DIM-1; x++){
+      for (int y = 1; y < DIM-1; y++){
+        if(ocean[y][x][table] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x][y][table]/4;
+          compute_cell(x,y,div4);
+        }
+      } 
+    }
+    table = 1 - table;
+    if(is_end){
+      copy(table);
+    }
+  }
+  return DYNAMIC_COLORING;
+}
+
+
+/** 
+  * Compute fonction for sequentiel treatment which alternate at every line
+*/
+float *dl_compute_seq_alternance(unsigned iterations){
   if(!is_end){
     return DYNAMIC_COLORING;
   }
@@ -73,7 +185,7 @@ float *compute_seq(unsigned iterations){
 /** 
   * Compute fonction for collapsed treatment
 */
-float *compute_parallel(unsigned iterations){
+float *dl_compute_parallel(unsigned iterations){
   if(!is_end){
     return DYNAMIC_COLORING;
   }
@@ -142,7 +254,7 @@ void treatment_task(int x, int y){
 /** 
   * Compute fonction for task treatment
 */
-float *compute_task(unsigned iterations)
+float *dl_compute_task(unsigned iterations)
 {
   if(!is_end){
     return DYNAMIC_COLORING;
@@ -196,4 +308,42 @@ float *compute_task(unsigned iterations)
 
 void compute_cl(){
 
+}
+
+// ------------------------------------------------------------------------------
+// ------------- Fonction initiale dépendante de la méthode appelée -------------
+// ------------------------------------------------------------------------------
+
+int dl_seq (int argc, char **argv)
+{
+  display_init (argc, argv,
+                DIM,                // dimension ( = x = y) du tas
+                MAX_HEIGHT,         // hauteur maximale du tas
+                dl_get,                // callback func
+                dl_compute_seq);       // callback func
+}
+
+int dl_parallel (int argc, char **argv)
+{
+  //omp_set_nested(1);
+  display_init (argc, argv,
+                DIM,                // dimension ( = x = y) du tas
+                MAX_HEIGHT,         // hauteur maximale du tas
+                dl_get,                // callback func
+                dl_compute_parallel);  // callback func
+
+}
+
+int dl_parallel_task (int argc, char **argv)
+{
+  #pragma omp parallel
+
+  #pragma omp single
+  {
+    display_init (argc, argv,
+                  DIM,              // dimension ( = x = y) du tas
+                  MAX_HEIGHT,       // hauteur maximale du tas
+                  dl_get,              // callback func
+                  dl_compute_task);    // callback func
+  }
 }
