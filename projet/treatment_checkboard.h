@@ -9,7 +9,6 @@ float *compute_task(unsigned iterations);
 void treatment_task(int x, int y);
 */
 
-
 void cb_sand_init_homogeneous();
 void cb_sand_init_center();
 
