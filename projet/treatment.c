@@ -236,7 +236,7 @@ static inline float *compute_parallel_for(unsigned iterations)
 /** 
   * Compute fonction for collapsed alternative treatment | Alternative Method to use the cache differently
 */
-static inline float *compute_parallel_alternative(unsigned iterations)
+static inline float *compute_parallel_for_alternative(unsigned iterations)
 {
 
   if(!is_end)
@@ -350,7 +350,7 @@ static inline float *compute_parallel_task(unsigned iterations)
 /** 
   * Compute fonction for task treatment | Alternative Method to move the cache differently
 */
-static inline float *compute_task_alternative(unsigned iterations)
+static inline float *compute_parallel_task_alternative(unsigned iterations)
 {
   if(!is_end)
   {
