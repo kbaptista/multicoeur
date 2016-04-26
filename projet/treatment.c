@@ -85,7 +85,6 @@ void sand_init_center()
     // -------------                     checkboat                      -------------
     // ------------------------------------------------------------------------------
 
-
 // callback
 unsigned get (unsigned x, unsigned y)
 {
@@ -298,7 +297,7 @@ int parallel_task(int argc, char **argv)
 
 //------------------------------------------------------------------------------
 
-int treatment(int argc, char ** argv)
+void treatment(int argc, char ** argv)
 {
   DIM = strtol(argv[3],NULL,10);
   if(!DIM){
