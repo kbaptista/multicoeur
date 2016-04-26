@@ -182,19 +182,29 @@ static inline float *compute_seq_doubleline(unsigned iterations)
 
   for (unsigned i = 0; i < iterations; i++)
   {
-    for (int x = 1; x < DIM-1; x=x+2)
+    for (int x = 1; x < DIM-1; x++)
     {
-      for (int y = 1; y < DIM-1; y++)
+      for (int y = 1; y < DIM-5; y+=4)
       {
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
           int div4 = ocean[x*DIM+y]/4;
           compute_cell(x,y,div4);
         }
-        if(ocean[(x+1)*DIM+y] >= MAX_HEIGHT)
+        if(ocean[x*DIM+y+1] >= MAX_HEIGHT)
         {
-          int div4 = ocean[(x+1)*DIM+y]/4;
-          compute_cell(x+1,y,div4);
+          int div4 = ocean[x*DIM+y+1]/4;
+          compute_cell(x,y+1,div4);
+        }
+        if(ocean[x*DIM+y+2] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x*DIM+y+2]/4;
+          compute_cell(x,y+2,div4);
+        }
+        if(ocean[x*DIM+y+3] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x*DIM+y+3]/4;
+          compute_cell(x,y+3,div4);
         }
       } 
     }
