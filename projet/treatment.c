@@ -48,7 +48,7 @@ static void print()
 }
 
 /** 
-  * initialize matrices with 5 grains in every square.
+  * initialize matrices with 5 squares in every square.
 */
 void sand_init_homogeneous()
 {
@@ -226,7 +226,7 @@ static inline float *compute_parallel_for(unsigned iterations)
  
   for (unsigned i = 0; i < iterations; i++)
   {
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for //collapse(2)
     for (int x = 1; x < DIM-1; x++)
     {
       for (int y = 1; y < DIM-1; y++)
@@ -234,7 +234,6 @@ static inline float *compute_parallel_for(unsigned iterations)
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
           int div4 = ocean[x*DIM+y]/4;
-#pragma omp critical
           compute_cell(x,y,div4);
         }
       }
@@ -291,7 +290,6 @@ static inline float *compute_parallel_for_alternative(unsigned iterations)
 //TODO
 float *compute_parallel_tiles(unsigned iterations)
 {
-
   if(!is_end)
   {
     return DYNAMIC_COLORING;
@@ -303,7 +301,7 @@ float *compute_parallel_tiles(unsigned iterations)
  
   for (unsigned i = 0; i < iterations; i++)
   {
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for
     for (int x = 1; x < DIM-1; x++)
     {
       for (int y = 1; y < DIM-1; y++)
@@ -311,7 +309,6 @@ float *compute_parallel_tiles(unsigned iterations)
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
           int div4 = ocean[x*DIM+y]/4;
-#pragma omp critical
           compute_cell(x,y,div4);
         }
       }
@@ -514,9 +511,11 @@ void treatment(int argc, char ** argv)
   {
     case 99 : //ascii c
       sand_init_center();
+      printf("Centered Case");
       break;
     case 104: //ascii h
       sand_init_homogeneous();
+      printf("Homogeneous Case");
       break;
     default :
       printf("Unrecognize configuration. Please, read our manual by using ./sand\n");
