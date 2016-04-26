@@ -1,5 +1,5 @@
-#ifndef _TREATMENT_CHECKBOARD_H_
-#define _TREATMENT_CHECKBOARD_H_
+#ifndef _TREATMENT_H_
+#define _TREATMENT_H_
 
 void cb_sand_init_homogeneous();
 void cb_sand_init_center();

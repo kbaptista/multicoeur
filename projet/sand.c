@@ -1,6 +1,5 @@
 #include "display.h"
-#include "treatment_checkboard.h"
-#include "treatment_doubleline.h"
+#include "treatment.h"
 
 #include <stdio.h>
 #include <stdlib.h>
