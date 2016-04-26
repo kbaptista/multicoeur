@@ -1,71 +1,97 @@
-
-#define _XOPEN_SOURCE 600
-
 #include "display.h"
+#include "treatment.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-//////////////////////////////////////////////////////////////////////////
-// Tas de sable "fake" (juste pour tester)
 
-#define DIM 128
-#define MAX_HEIGHT  128
-#include <math.h>
+// ------------------------------------------------------------------------------
+// -------------        Fonctions de traitement des Arguments       -------------
+// ------------------------------------------------------------------------------
 
-unsigned ocean[DIM][DIM];
-
-// vecteur de pixel renvoyé par compute  
-struct {
-  float R, G, B;
-} couleurs[DIM][DIM];
-
-// callback
-unsigned get (unsigned x, unsigned y)
+/** 
+  * initialise matrices : 
+  * 0 means centered configuration
+  * 1 means homogeneous configuration
+*/
+void sand_init (int init)
 {
-  return ocean[y][x];
+  if(!init)
+  {
+    sand_init_center();
+  }
+  else
+  {
+    sand_init_homogeneous();
+  }
 }
 
-// Tas de sable initial
-static void sable_init ()
-{
-  //MQ : changé par bérénice. J'en comprend pas l'intérêt.
-  //unsigned dmax2 = MAX_HEIGHT; 
+char * man = "usage : ./sand <INITIALIZATION> <SIZE> <ALGORITHM> \n\n\t-INITIALIZATION can be :\n\t\t-homogeneous or h : it starts the homogeneous case ;\n\t\t-centered or c : it starts the centered case ;\n\t-SIZE can be :\n\t\t-128 ;\n\t\t-512 ;\n\t-ALGORITHM can be :\n\t\t-sequential or s : it runs the sequential method ;\n\t\t-parallel or p : it runs the parallel method ;\n\t\t-task or t : it runs the parallel task method ;\n";
 
-  for (int y = 0; y < DIM; y++)
-    for (int x = 0; x < DIM; x++) {
-      ocean[y][x] = MAX_HEIGHT / 4;
+/* Add your treatment choices here */
+void treatment_compare(int argc, char **argv, int init_compare_res, int size_compare_res){
+
+  if(!strcmp(argv[3], "sequential") || !strcmp(argv[3], "s")){
+    	printf("Treatment Sequential\n\n");
+      sand_init(init_compare_res);
+      seq(argc, argv);
     }
-}
-
-// callback
-float *compute (unsigned iterations)
-{
-  static int step = 0;
-  for (unsigned i = 0; i < iterations; i++)
-    {
-      step++;
-      for (int y = 0; y < DIM; y++)
-    	{
-    	  int v =  MAX_HEIGHT * (1+sin( 4* (y+step) * 3.14/ DIM)) / 4;
-    	  for (int x = 0; x < DIM; x++)
-    	    ocean[y][x]  = v;
-    	}
+    else if(!strcmp(argv[3], "for") || !strcmp(argv[3], "f")){
+    	printf("Treatment Parallel For\n\n");
+      sand_init(init_compare_res);
+      parallel(argc, argv);
     }
-  return DYNAMIC_COLORING; // altitude-based coloring
-  // return couleurs;
+    else if(!strcmp(argv[3], "task") || !strcmp(argv[3], "t")){
+    	printf("Treatment Parallel Task\n\n");
+      sand_init(init_compare_res);
+      parallel_task(argc, argv);
+    }
+    
+    else{
+		printf("%s",man);
+		return;
+	}
 }
 
+void size_compare(int argc, char **argv, int init_compare_res){
+	if (atoi(argv[2])==128)
+	{
+		treatment_compare(argc,argv,init_compare_res, 128);
+	}
+	else if (atoi(argv[2])==512)
+	{
+		treatment_compare(argc, argv, init_compare_res, 512);
+	}
+  else{
+  	printf("%s",man);
+  	return;
+  }
+}
+
+void init_compare(int argc, char **argv){
+
+  if(!strcmp(argv[1], "homogeneous") || !strcmp(argv[1], "h")){
+  	printf("Case Homogeneous\n");
+  	size_compare(argc, argv, 1);
+  }
+  else if(!strcmp(argv[1], "centered") || !strcmp(argv[1], "c")){
+  	printf("Case Centered\n");
+  	size_compare(argc, argv, 0);
+  }
+  else{
+  	printf("%s",man);
+  	return;
+  }
+}
+
+// ------------------------------------------------------------------------------
+// -------------                         MAIN                       -------------
+// ------------------------------------------------------------------------------
 
 int main (int argc, char **argv)
 {
-  sable_init ();
   
-  display_init (argc, argv,
-		DIM,              // dimension ( = x = y) du tas
-		MAX_HEIGHT,       // hauteur maximale du tas
-		get,              // callback func
-		compute);         // callback func
 
-  return 0;
+	return 0;
 }
