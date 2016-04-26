@@ -297,21 +297,37 @@ float *compute_parallel_tiles(unsigned iterations)
   is_end = 0;
 
   int nb_thread = omp_get_num_threads();
-  int thread_num = omp_get_thread_num();
- 
+  int nb_lines = DIM-1 / nb_thread;
+
+
   for (unsigned i = 0; i < iterations; i++)
   {
-#pragma omp parallel for
-    for (int x = 1; x < DIM-1; x++)
+#pragma omp parallel
     {
-      for (int y = 1; y < DIM-1; y++)
+      int thread_num = omp_get_thread_num();
+      int my_first_line = nb_lines*thread_num;
+
+
+      // TODO: Kevin a une idée. le laisser faire
+      for (int x = 2; x < DIM-1; x=x+2)
       {
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
+        for (int y = DIM-2; y > 0; y--)
         {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
+
         }
       }
+
+
+/*
+      for(int j = my_first_line ; j < my_first_line+nb_lines*(DIM-1); j++)
+      {
+        if(ocean[j] >= MAX_HEIGHT)
+        {
+          compute_cell(j / DIM, J % DIM, ocean[j]/4);
+        }
+      }
+*/
+
     }
   }
   return DYNAMIC_COLORING;
@@ -436,6 +452,13 @@ int display(int argc, char ** argv)
                       compute_parallel_task);    // callback func
       }
       break;
+    case 105 : //ascii i
+      display_init (argc, argv,
+                DIM,                // dimension ( = x = y) du tas
+                MAX_HEIGHT,         // hauteur maximale du tas
+                get,                // callback func
+                compute_parallel_tiles);  // callback func
+      break;
     default :
       printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
       break;
@@ -481,6 +504,9 @@ int performance(int argc, char ** argv)
     case 84 : //ascii T
       without_display(compute_parallel_task_alternative);
       break;
+    case 105 : //ascii i
+      without_display(compute_parallel_tiles);
+      break;
     default :
       printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
       break;
@@ -489,6 +515,7 @@ int performance(int argc, char ** argv)
    
   temps = TIME_DIFF(t1,t2);
   printf("Algorithm time = %ld.%03ldms \n", temps/1000, temps%1000);
+  free(ocean);
 }
 
 
