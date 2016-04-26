@@ -172,6 +172,36 @@ static inline float *compute_seq_alternative(unsigned iterations)
   return DYNAMIC_COLORING;
 }
 
+static inline float *compute_seq_doubleline(unsigned iterations)
+{
+  if(is_end!=1)
+  {
+    return DYNAMIC_COLORING;
+  }
+  is_end = 0;
+
+  for (unsigned i = 0; i < iterations; i++)
+  {
+    for (int x = 1; x < DIM-1; x=x+2)
+    {
+      for (int y = 1; y < DIM-1; y++)
+      {
+        if(ocean[x*DIM+y] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x*DIM+y]/4;
+          compute_cell(x,y,div4);
+        }
+        if(ocean[(x+1)*DIM+y] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[(x+1)*DIM+y]/4;
+          compute_cell(x+1,y,div4);
+        }
+      } 
+    }
+  }
+  return DYNAMIC_COLORING;
+}
+
 /** 
   * Compute fonction for collapsed treatment 
 */
@@ -215,7 +245,6 @@ static inline float *compute_parallel_alternative(unsigned iterations)
   }
   is_end = 0;
 
- 
   for (unsigned i = 0; i < iterations; i++)
   {
 #pragma omp parallel for
@@ -249,6 +278,7 @@ static inline float *compute_parallel_alternative(unsigned iterations)
 /** 
   * Compute fonction for collapsed treatment
 */
+//TODO
 float *compute_parallel_tiles(unsigned iterations)
 {
 
@@ -426,14 +456,23 @@ int performance(int argc, char ** argv)
     case 115 : // ascii s
       without_display(compute_seq);
       break;
-    case 97 : //ascii a
+    case 83 : // ascii S
       without_display(compute_seq_alternative);
+      break;
+    case 108 : //ascii l
+      without_display(compute_seq_doubleline);
       break;
     case 102 : //ascii f
       without_display(compute_parallel_for);
       break;
+    case 70 : //ascii F
+      without_display(compute_parallel_for_alternative);
+      break;
     case 116 : //ascii t
       without_display(compute_parallel_task);
+      break;
+    case 84 : //ascii T
+      without_display(compute_parallel_task_alternative);
       break;
     default :
       printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
