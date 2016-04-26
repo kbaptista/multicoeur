@@ -6,8 +6,6 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-
-//#define DIM 128
 #define MAX_HEIGHT  4
 
 #define TIME_DIFF(t1, t2) \
@@ -19,7 +17,7 @@ unsigned *ocean;
 static unsigned is_end = 1;
 
 // ------------------------------------------------------------------------------
-// -------------               Fonctions Utilitaires                -------------
+// -------------               Utility Functions                    -------------
 // ------------------------------------------------------------------------------
 
 /** 
@@ -28,35 +26,36 @@ static unsigned is_end = 1;
 */
 static void print()
 {
-    for (int x = 0; x < DIM; x++)
+  for (int x = 0; x < DIM; x++)
+  {
+    for (int y = 0; y < DIM; y++) 
     {
-      for (int y = 0; y < DIM; y++) 
+      if(ocean[x*DIM+y]< 10)
       {
-        if(ocean[x*DIM+y]< 10)
-        {
-          printf("  %d ",ocean[x*DIM+y]);
-        }
-        else if (ocean[x*DIM+y] < 100)
-        {
-          printf(" %d ",ocean[x*DIM+y]);
-        }
-        else
-        {
-          printf("%d ",ocean[x*DIM+y]);
+        printf("  %d ",ocean[x*DIM+y]);
+      }
+      else if (ocean[x*DIM+y] < 100)
+      {
+        printf(" %d ",ocean[x*DIM+y]);
+      }
+      else
+      {
+        printf("%d ",ocean[x*DIM+y]);
       }
     }
     printf("\n");
-}
+  }
 }
 
 /** 
-  * initialize matrices with 5 grain in every case.
+  * initialize matrices with 5 grains in every square.
 */
 void sand_init_homogeneous()
 {
-//#pragma omp parallel for schedule(static) collapse(2)
-    for (int x = 0; x < DIM; x++){
-      for (int y = 0; y < DIM; y++){
+  for (int x = 0; x < DIM; x++)
+  {
+    for (int y = 0; y < DIM; y++)
+    {
       ocean[x*DIM+y] = 5;
     }
   }
@@ -68,22 +67,15 @@ void sand_init_homogeneous()
 void sand_init_center()
 {
   int center_value = 100000;
-//#pragma omp parallel for schedule(static) collapse(2)
-  for (int x = 0; x < DIM; x++){
-    for (int y = 0; y < DIM; y++){
+  for (int x = 0; x < DIM; x++)
+  {
+    for (int y = 0; y < DIM; y++)
+    {
       ocean[x*DIM+y] = 0;
     }
   }
   ocean[DIM*DIM/2+DIM/2] = center_value;
 }
-
-// ------------------------------------------------------------------------------
-// -------------              Fonctions de traitement               -------------
-// ------------------------------------------------------------------------------
-
-    // ------------------------------------------------------------------------------
-    // -------------                     checkboat                      -------------
-    // ------------------------------------------------------------------------------
 
 // callback
 unsigned get (unsigned x, unsigned y)
@@ -91,56 +83,73 @@ unsigned get (unsigned x, unsigned y)
   return ocean[x*DIM+y];
 }
 
+
+// ------------------------------------------------------------------------------
+// -------------              Treatments Functions               ----------------
+// ------------------------------------------------------------------------------
+
 /** 
-  * Applied modifications into 1-table for ocean[y][x] sandpile.
+  * Applied modifications into 1-table for ocean[x][y] sandpile.
 */
-static inline void compute_cell(int x, int y, int div4){
-  ocean[x*DIM+y]      -= div4*4;
-  ocean[x*DIM+y+1]    += div4;
-  ocean[x*DIM+y-1]    += div4;
-  ocean[(x-1)*DIM+y]  += div4;
-  ocean[(x+1)*DIM+y]  += div4;
+static inline void compute_cell(int x, int y, int div4)
+{
+// is the pragma atoms used when there is no pragma parallel before ?
+#pragma omp atoms
+  {
+    ocean[x*DIM+y]      -= div4*4;
+    ocean[x*DIM+y+1]    += div4;
+    ocean[x*DIM+y-1]    += div4;
+    ocean[(x-1)*DIM+y]  += div4;
+    ocean[(x+1)*DIM+y]  += div4;
+  }
   is_end = 1;
 }
 
 /** 
-  * Compute fonction for sequentiel treatment
+  * Compute fonction for sequential treatment
 */
-static inline float *compute_seq(unsigned iterations){
-  if(!is_end){
+static inline float *compute_seq(unsigned iterations)
+{
+  if(is_end!=1)
+  {
+    return DYNAMIC_COLORING;
+  }
+  is_end = 0;
+ 
+  for (unsigned i = 0; i < iterations; i++)
+  {
+    for (int x = 1; x < DIM-1; x++)
+    {
+      for (int y = 1; y < DIM-1; y++)
+      {
+        if(ocean[x*DIM+y] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x*DIM+y]/4;
+          compute_cell(x,y,div4);
+        }
+      }
+    }
+  }
+  return DYNAMIC_COLORING;
+}
+
+/** 
+  * Compute fonction for sequential treatment which alternate at every line | Alternative Method to use the cache differently
+*/
+static inline float *compute_seq_alternative(unsigned iterations)
+{
+  if(is_end!=1)
+  {
     return DYNAMIC_COLORING;
   }
   is_end = 0;
 
   for (unsigned i = 0; i < iterations; i++)
+  {
+    for (int x = 1; x < DIM-1; x=x+2)
     {
-        for (int x = 1; x < DIM-1; x++)
+      for (int y = 1; y < DIM-1; y++)
       {
-         for (int y = 1; y < DIM-1; y++)
-         {
-            if(ocean[x*DIM+y] >= MAX_HEIGHT)
-            {
-              int div4 = ocean[x*DIM+y]/4;
-              compute_cell(x,y,div4);
-            }
-         }
-    	}
-    }
-  return DYNAMIC_COLORING;
-}
-
-/** 
-  * Compute fonction for sequentiel treatment which alternate at every line
-*/
-static float *compute_seq_alternative(unsigned iterations){
-  if(!is_end){
-    return DYNAMIC_COLORING;
-  }
-  is_end = 0;
-
-  for (unsigned i = 0; i < iterations; i++){
-    for (int x = 1; x < DIM-1; x=x+2){
-      for (int y = 1; y < DIM-1; y++){
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
           int div4 = ocean[x*DIM+y]/4;
@@ -148,8 +157,84 @@ static float *compute_seq_alternative(unsigned iterations){
         }
       } 
     }
-    for (int x = 2; x < DIM-1; x=x+2){
-      for (int y = DIM-2; y > 0; y--){
+    for (int x = 2; x < DIM-1; x=x+2)
+    {
+      for (int y = DIM-2; y > 0; y--)
+      {
+        if(ocean[x*DIM+y] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x*DIM+y]/4;
+          compute_cell(x,y,div4);
+        }
+      }
+    }
+  }
+  return DYNAMIC_COLORING;
+}
+
+/** 
+  * Compute fonction for collapsed treatment 
+*/
+static inline float *compute_parallel_for(unsigned iterations)
+{
+  if(is_end!=1)
+  {
+    return DYNAMIC_COLORING;
+  }
+  is_end = 0;
+
+ 
+  for (unsigned i = 0; i < iterations; i++)
+  {
+#pragma omp parallel for collapse(2)
+    for (int x = 1; x < DIM-1; x++)
+    {
+      for (int y = 1; y < DIM-1; y++)
+      {
+        if(ocean[x*DIM+y] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x*DIM+y]/4;
+#pragma omp critical
+          compute_cell(x,y,div4);
+        }
+      }
+    }
+  }
+  return DYNAMIC_COLORING;
+}
+
+/** 
+  * Compute fonction for collapsed alternative treatment | Alternative Method to use the cache differently
+*/
+static inline float *compute_parallel_alternative(unsigned iterations)
+{
+
+  if(!is_end)
+  {
+    return DYNAMIC_COLORING;
+  }
+  is_end = 0;
+
+ 
+  for (unsigned i = 0; i < iterations; i++)
+  {
+#pragma omp parallel for
+    for (int x = 1; x < DIM-1; x=x+2)
+    {
+      for (int y = 1; y < DIM-1; y++)
+      {
+        if(ocean[x*DIM+y] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x*DIM+y]/4;
+          compute_cell(x,y,div4);
+        }
+      } 
+    }
+#pragma omp parallel for
+    for (int x = 2; x < DIM-1; x=x+2)
+    {
+      for (int y = DIM-2; y > 0; y--)
+      {
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
           int div4 = ocean[x*DIM+y]/4;
@@ -164,31 +249,29 @@ static float *compute_seq_alternative(unsigned iterations){
 /** 
   * Compute fonction for collapsed treatment
 */
-float *compute_parallel_for(unsigned iterations){
-  if(!is_end){
+float *compute_parallel_tiles(unsigned iterations)
+{
+
+  if(!is_end)
+  {
     return DYNAMIC_COLORING;
   }
   is_end = 0;
 
-  for (unsigned i = 0; i < iterations; i++){
-    #pragma omp parallel for collapse(2)
-    for (int x = 1; x < DIM-1; x=x+2){
-      for (int y = 1; y < DIM-1; y++){
+  int nb_thread = omp_get_num_threads();
+  int thread_num = omp_get_thread_num();
+ 
+  for (unsigned i = 0; i < iterations; i++)
+  {
+#pragma omp parallel for collapse(2)
+    for (int x = 1; x < DIM-1; x++)
+    {
+      for (int y = 1; y < DIM-1; y++)
+      {
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
           int div4 = ocean[x*DIM+y]/4;
-            #pragma omp critical
-          compute_cell(x,y,div4);
-        }
-      } 
-    }
-    #pragma omp parallel for collapse(2)
-    for (int x = 2; x < DIM-1; x=x+2){
-      for (int y = DIM-2; y > 0; y--){
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-            #pragma omp critical
+#pragma omp critical
           compute_cell(x,y,div4);
         }
       }
@@ -198,32 +281,60 @@ float *compute_parallel_for(unsigned iterations){
 }
 
 /** 
-  * Adapted treatment to one case, with task specificity
+  * Adapted treatment to one case, with tasks specificities
 */
-static void treatment_task(int x, int y){
+static inline void treatment_task(int x, int y)
+{
   int div4 = ocean[x*DIM+y]/4;
-
-  //#pragma omp critical
-  {
-    compute_cell(x,y,div4);
-  }
+  compute_cell(x,y,div4);
 }
 
 /** 
   * Compute fonction for task treatment
 */
-static float *compute_parallel_task(unsigned iterations)
+static inline float *compute_parallel_task(unsigned iterations)
 {
-  if(!is_end){
+  if(!is_end)
+  {
     return DYNAMIC_COLORING;
   }
   is_end = 0;
 
-    // 2 passage (pour optimiser le cache ?)
-  for (unsigned i = 0; i < iterations; i++){
-    for (int x = 1; x < DIM-1; x =x+2){
-      for (int y = 1; y < DIM-1; y++){
-        #pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
+  for (unsigned i = 0; i < iterations; i++)
+  {
+    for (int x = 1; x < DIM-1; x++)
+    {
+      for (int y = 1; y < DIM-1; y++)
+      {
+#pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
+        if(ocean[x*DIM+y] >= MAX_HEIGHT)
+        {
+          treatment_task(x,y);
+        }
+      }
+    }
+  }
+  return DYNAMIC_COLORING;
+}
+
+/** 
+  * Compute fonction for task treatment | Alternative Method to move the cache differently
+*/
+static inline float *compute_task_alternative(unsigned iterations)
+{
+  if(!is_end)
+  {
+    return DYNAMIC_COLORING;
+  }
+  is_end = 0;
+
+  for (unsigned i = 0; i < iterations; i++)
+  {
+    for (int x = 1; x < DIM-1; x =x+2)
+    {
+      for (int y = 1; y < DIM-1; y++)
+      {
+#pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
           treatment_task(x,y);
@@ -231,9 +342,11 @@ static float *compute_parallel_task(unsigned iterations)
       }
     }
 
-    for (int x = 2; x < DIM-1; x = x+2){
-      for (int y = DIM-2; y > 0 ; y--){
-        #pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
+    for (int x = 2; x < DIM-1; x = x+2)
+    {
+      for (int y = DIM-2; y > 0 ; y--)
+      {
+#pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
           treatment_task(x,y);
@@ -245,73 +358,46 @@ static float *compute_parallel_task(unsigned iterations)
 }
 
 // --------------------------------------------------------------------------------------------------------
-// ------------- Fonction initiale pour l'affchage graphique dépendante de la méthode appelée -------------
+// ----------------------------- Initials functions to adapt at arguments  --------------------------------
 // --------------------------------------------------------------------------------------------------------
 
-int seq (int argc, char **argv)
+int display(int argc, char ** argv)
 {
-  display_init (argc, argv,
+  switch((int)argv[4][0])
+  {
+    case 115 : // ascii s
+      display_init (argc, argv,
                 DIM,                // dimension ( = x = y) du tas
                 MAX_HEIGHT,         // hauteur maximale du tas
                 get,                // callback func
                 compute_seq);       // callback func
-}
-
-int seq_alternative(int argc, char **argv)
-{
-  display_init (argc, argv,
+      break;
+    case 97 : //ascii a
+      display_init (argc, argv,
               DIM,                // dimension ( = x = y) du tas
               MAX_HEIGHT,         // hauteur maximale du tas
               get,                // callback func
-              compute_seq_alternative);       // callback func
-}
-
-
-
-int parallel_for(int argc, char **argv)
-{
-  //omp_set_nested(1);
-  display_init (argc, argv,
+              compute_seq_alternative); // callback func
+      break;
+    case 102 : //ascii f
+      omp_set_nested(1);
+      display_init (argc, argv,
                 DIM,                // dimension ( = x = y) du tas
                 MAX_HEIGHT,         // hauteur maximale du tas
                 get,                // callback func
                 compute_parallel_for);  // callback func
-
-}
-
-int parallel_task(int argc, char **argv)
-{
-  #pragma omp parallel
-
-  #pragma omp single
-  {
-    display_init (argc, argv,
-                  DIM,              // dimension ( = x = y) du tas
-                  MAX_HEIGHT,       // hauteur maximale du tas
-                  get,              // callback func
-                  compute_parallel_task);    // callback func
-  }
-}
-
-
-//------------------------------------------------------------------------------
-
-
-int display(int argc, char ** argv){
-
-  switch((int)argv[4][0])
-  {
-    case 115 : // ascii s
-      seq (argc,argv);
-      break;
-    case 97 : //ascii a
-      seq_alternative(argc,argv);
-      break;
-    case 102 : //ascii f
-      parallel_for(argc,argv);
       break;
     case 116 : //ascii t
-      parallel_task(argc,argv);
+#pragma omp parallel
+
+#pragma omp single
+      {
+        display_init (argc, argv,
+                      DIM,              // dimension ( = x = y) du tas
+                      MAX_HEIGHT,       // hauteur maximale du tas
+                      get,              // callback func
+                      compute_parallel_task);    // callback func
+      }
       break;
     default :
       printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
@@ -328,8 +414,8 @@ void without_display(float * (*compute_func_t) (unsigned iterations))
   while(is_end != 0);
 }
 
-int performance(int argc, char ** argv){
-
+int performance(int argc, char ** argv)
+{
   unsigned long temps;
   struct timeval t1, t2;
 
@@ -356,9 +442,6 @@ int performance(int argc, char ** argv){
   gettimeofday(&t2,NULL);
    
   temps = TIME_DIFF(t1,t2);
-
-  //print();
-
   printf("Algorithm time = %ld.%03ldms \n", temps/1000, temps%1000);
 }
 
@@ -366,7 +449,8 @@ int performance(int argc, char ** argv){
 void treatment(int argc, char ** argv)
 {
   DIM = strtol(argv[3],NULL,10);
-  if(!DIM){
+  if(!DIM)
+  {
     printf("Unrecognize size. Please, read our manual by using ./sand\n");
     return;
   }
