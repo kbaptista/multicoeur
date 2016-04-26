@@ -4,6 +4,7 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 
 //#define DIM 128
@@ -12,7 +13,7 @@
 #define TIME_DIFF(t1, t2) \
         ((t2.tv_sec - t1.tv_sec) * 1000000 + (t2.tv_usec - t1.tv_usec))
 
-unsigned DIM
+unsigned DIM;
 unsigned *ocean;
 
 static unsigned is_end = 1;
@@ -43,7 +44,6 @@ static void print()
         {
           printf("%d ",ocean[x*DIM+y]);
       }
-      printf("\n");
     }
     printf("\n");
 }
@@ -94,7 +94,7 @@ unsigned get (unsigned x, unsigned y)
 /** 
   * Applied modifications into 1-table for ocean[y][x] sandpile.
 */
-void compute_cell(int x, int y, int div4){
+static inline void compute_cell(int x, int y, int div4){
   ocean[x*DIM+y]      -= div4*4;
   ocean[x*DIM+y+1]    += div4;
   ocean[x*DIM+y-1]    += div4;
@@ -106,13 +106,12 @@ void compute_cell(int x, int y, int div4){
 /** 
   * Compute fonction for sequentiel treatment
 */
-static float *compute_seq(unsigned iterations){
+static inline float *compute_seq(unsigned iterations){
   if(!is_end){
     return DYNAMIC_COLORING;
   }
   is_end = 0;
 
- 
   for (unsigned i = 0; i < iterations; i++)
     {
         for (int x = 1; x < DIM-1; x++)
@@ -264,7 +263,7 @@ int seq_alternative(int argc, char **argv)
               DIM,                // dimension ( = x = y) du tas
               MAX_HEIGHT,         // hauteur maximale du tas
               get,                // callback func
-              compute_seq_alternance);       // callback func
+              compute_seq_alternative);       // callback func
 }
 
 
@@ -297,44 +296,10 @@ int parallel_task(int argc, char **argv)
 
 //------------------------------------------------------------------------------
 
-void treatment(int argc, char ** argv)
-{
-  DIM = strtol(argv[3],NULL,10);
-  if(!DIM){
-    printff("taille fournit non valide. Veuillez vous référez à notre usage.\n");
-    return;
-  }
-  
-  // pas d'autres allocations durant le traitement,
-  // ne sera pas free par nous à la fin si on entre dans display car aurait nécessité de modifier display 
-  // MAIS sera nettoyé sans perte à la fermture du processus en tout les cas.
-  ocean = malloc(sizeof(unsigned)*DIM*DIM); 
 
-   //initialisation de la matrice
-  switch(atoi(argv[2]))
-  {
-    case 99 : //ascii c
-      sand_init_center();
-      break;
-    case 104: //ascii h
-      sand_init_homogeneous();
-      break;
-  }
-  
-  // objectif
-  if(!atoi(argv[1]))
-  {
-    performance(argv[4]);
-  }
-  else
-  {
-    display(argv[4]);  
-  }
-}
+int display(int argc, char ** argv){
 
-int display(char * method){
-
-  switch(method)
+  switch((int)argv[4][0])
   {
     case 115 : // ascii s
       seq (argc,argv);
@@ -348,21 +313,29 @@ int display(char * method){
     case 116 : //ascii t
       parallel_task(argc,argv);
       break;
+    default :
+      printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
+      break;
   }
 }
 
-int without_display(float * (*compute_func_t) (unsigned iterations))
+void without_display(float * (*compute_func_t) (unsigned iterations))
 {
   // TODO : prendre une décision pour la valeur de interation par défault.
   do{
     compute_func_t(10);
   }
-  while(is_end);
+  while(is_end != 0);
 }
 
-int performance(char * method){
+int performance(int argc, char ** argv){
 
-  switch(method)
+  unsigned long temps;
+  struct timeval t1, t2;
+
+  gettimeofday(&t1,NULL);
+
+  switch((int)argv[4][0])
   {
     case 115 : // ascii s
       without_display(compute_seq);
@@ -376,5 +349,54 @@ int performance(char * method){
     case 116 : //ascii t
       without_display(compute_parallel_task);
       break;
+    default :
+      printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
+      break;
+  }
+  gettimeofday(&t2,NULL);
+   
+  temps = TIME_DIFF(t1,t2);
+
+  //print();
+
+  printf("Algorithm time = %ld.%03ldms \n", temps/1000, temps%1000);
+}
+
+
+void treatment(int argc, char ** argv)
+{
+  DIM = strtol(argv[3],NULL,10);
+  if(!DIM){
+    printf("Unrecognize size. Please, read our manual by using ./sand\n");
+    return;
+  }
+  
+  // pas d'autres allocations durant le traitement,
+  // ne sera pas free par nous à la fin si on entre dans display car aurait nécessité de modifier display 
+  // MAIS sera nettoyé sans perte à la fermture du processus en tout les cas.
+  ocean = malloc(sizeof(unsigned)*DIM*DIM); 
+
+   //initialisation de la matrice
+  switch((int)argv[2][0])
+  {
+    case 99 : //ascii c
+      sand_init_center();
+      break;
+    case 104: //ascii h
+      sand_init_homogeneous();
+      break;
+    default :
+      printf("Unrecognize configuration. Please, read our manual by using ./sand\n");
+      break;
+  }
+
+  // objectif
+  if(!atoi(argv[1]))
+  {
+    performance(argc,argv);
+  }
+  else
+  {
+    display(argc,argv);  
   }
 }

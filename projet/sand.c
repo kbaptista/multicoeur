@@ -15,6 +15,7 @@
   * 0 means centering configuration
   * 1 means homogeneous configuration
 */
+  /*
 void sand_init (int init)
 {
   if(!init)
@@ -26,7 +27,7 @@ void sand_init (int init)
     cb_sand_init_homogeneous();
   }
 }
-
+*/
 char * man = "usage : ./sand <INITIALIZATION> <SIZE> <ALGORITHM> \n\n\t-INITIALIZATION can be :\n\t\t-homogeneous or h : it starts the homogeneous case ;\n\t\t-centered or c : it starts the centered case ;\n\t-SIZE can be :\n\t\t-128 ;\n\t\t-512 ;\n\t-ALGORITHM can be :\n\t\t-sequential or s : it runs the sequential method ;\n\t\t-parallel or p : it runs the parallel method ;\n\t\t-task or t : it runs the parallel task method ;\n";
 
 /* Add your treatment choices here */
