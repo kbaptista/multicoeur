@@ -17,7 +17,7 @@ endif
 
 default: $(PROG)
 
-$(PROG): sand.o display.o treatment_doubleline.o treatment_checkboard.o
+$(PROG): sand.o display.o treatment.o
 	$(CC) -o $@ $(LDFLAGS) $^ $(LDLIBS) 
 
 #$(COMPARER): seq.o parallel.o comparer.o display.o parallel_task.o

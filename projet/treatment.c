@@ -46,6 +46,7 @@ static void print()
     }
     printf("\n");
 }
+}
 
 /** 
   * initialize matrices with 5 grain in every case.
@@ -126,7 +127,6 @@ static float *compute_seq(unsigned iterations){
          }
     	}
     }
-  }
   return DYNAMIC_COLORING;
 }
 
@@ -194,7 +194,6 @@ float *compute_parallel(unsigned iterations){
         }
       }
     }
-    table = 1 - table;
   }
   return DYNAMIC_COLORING;
 }
@@ -242,9 +241,6 @@ static float *compute_task(unsigned iterations)
         }
       }
     }
-
-    //#pragma omp taskwait
-    table = 1 - table;
   }
   return DYNAMIC_COLORING;
 }
@@ -257,7 +253,7 @@ static float *compute_task(unsigned iterations)
 /** 
   * Compute fonction for sequentiel treatment which alternate at every line
 */
-static float *compute_seq_alternative(unsigned iterations){
+static float *cb_compute_seq_alternative(unsigned iterations){
   if(!is_end){
     return DYNAMIC_COLORING;
   }
@@ -286,137 +282,141 @@ static float *compute_seq_alternative(unsigned iterations){
   return DYNAMIC_COLORING;
 }
 
-/** 
-  * Compute fonction for collapsed treatment
-*/
-float *compute_parallel(unsigned iterations){
-  if(!is_end){
-    return DYNAMIC_COLORING;
-  }
-  is_end = 0;
+// /** 
+//   * Compute fonction for collapsed treatment
+// */
+// float *compute_parallel(unsigned iterations){
+//   if(!is_end){
+//     return DYNAMIC_COLORING;
+//   }
+//   is_end = 0;
 
-  for (unsigned i = 0; i < iterations; i++){
-    #pragma omp parallel for collapse(2)
-    for (int x = 1; x < DIM-1; x=x+2){
-      for (int y = 1; y < DIM-1; y++){
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-            #pragma omp critical
-          compute_cell(x,y,div4);
-        }
-      } 
-    }
-    #pragma omp parallel for collapse(2)
-    for (int x = 2; x < DIM-1; x=x+2){
-      for (int y = DIM-2; y > 0; y--){
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-            #pragma omp critical
-          compute_cell(x,y,div4);
-        }
-      }
-    }
-    table = 1 - table;
-  }
-  return DYNAMIC_COLORING;
-}
+//   for (unsigned i = 0; i < iterations; i++){
+//     #pragma omp parallel for collapse(2)
+//     for (int x = 1; x < DIM-1; x=x+2){
+//       for (int y = 1; y < DIM-1; y++){
+//         if(ocean[x*DIM+y] >= MAX_HEIGHT)
+//         {
+//           int div4 = ocean[x*DIM+y]/4;
+//             #pragma omp critical
+//           compute_cell(x,y,div4);
+//         }
+//       } 
+//     }
+//     #pragma omp parallel for collapse(2)
+//     for (int x = 2; x < DIM-1; x=x+2){
+//       for (int y = DIM-2; y > 0; y--){
+//         if(ocean[x*DIM+y] >= MAX_HEIGHT)
+//         {
+//           int div4 = ocean[x*DIM+y]/4;
+//             #pragma omp critical
+//           compute_cell(x,y,div4);
+//         }
+//       }
+//     }
+//   }
+//   return DYNAMIC_COLORING;
+// }
 
-/** 
-  * Adapted treatment to one case, with task specificity
-*/
-static void treatment_task(int x, int y){
-  int div4 = ocean[x*DIM+y]/4;
+// /** 
+//   * Adapted treatment to one case, with task specificity
+// */
+// static void treatment_task(int x, int y){
+//   int div4 = ocean[x*DIM+y]/4;
 
-  //#pragma omp critical
-  {
-    compute_cell(x,y,div4);
-  }
-}
+//   //#pragma omp critical
+//   {
+//     compute_cell(x,y,div4);
+//   }
+// }
 
-/** 
-  * Compute fonction for task treatment
-*/
-static float *compute_task(unsigned iterations)
-{
-  if(!is_end){
-    return DYNAMIC_COLORING;
-  }
-  is_end = 0;
+// /** 
+//   * Compute fonction for task treatment
+// */
+// static float *compute_task(unsigned iterations)
+// {
+//   if(!is_end){
+//     return DYNAMIC_COLORING;
+//   }
+//   is_end = 0;
 
-    // 2 passage (pour optimiser le cache ?)
-  for (unsigned i = 0; i < iterations; i++){
-    for (int x = 1; x < DIM-1; x =x+2){
-      for (int y = 1; y < DIM-1; y++){
-        #pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          treatment_task(x,y);
-        }
-      }
-    }
+//     // 2 passage (pour optimiser le cache ?)
+//   for (unsigned i = 0; i < iterations; i++){
+//     for (int x = 1; x < DIM-1; x =x+2){
+//       for (int y = 1; y < DIM-1; y++){
+//         #pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
+//         if(ocean[x*DIM+y] >= MAX_HEIGHT)
+//         {
+//           treatment_task(x,y);
+//         }
+//       }
+//     }
 
-    for (int x = 2; x < DIM-1; x = x+2){
-      for (int y = DIM-2; y > 0 ; y--){
-        #pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          treatment_task(x,y);
-        }
-      }
-    }
+//     for (int x = 2; x < DIM-1; x = x+2){
+//       for (int y = DIM-2; y > 0 ; y--){
+//         #pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
+//         if(ocean[x*DIM+y] >= MAX_HEIGHT)
+//         {
+//           treatment_task(x,y);
+//         }
+//       }
+//     }
+//   }
 
-    //#pragma omp taskwait
-    table = 1 - table;
-  }
-  return DYNAMIC_COLORING;
-}
+//   is_end = 1;
+
+//   return DYNAMIC_COLORING;
+// }
 
 
-// ------------------------------------------------------------------------------
-// ------------- Fonction initiale dépendante de la méthode appelée -------------
-// ------------------------------------------------------------------------------
+// // --------------------------------------------------------------------------------------------------------
+// // ------------- Fonction initiale pour l'affchage graphique dépendante de la méthode appelée -------------
+// // --------------------------------------------------------------------------------------------------------
 
-int cb_seq (int argc, char **argv)
-{
-  display_init (argc, argv,
-                DIM,                // dimension ( = x = y) du tas
-                MAX_HEIGHT,         // hauteur maximale du tas
-                cb_get,                // callback func
-                cb_compute_seq);       // callback func
-}
+// int cb_seq (int argc, char **argv)
+// {
+//   display_init (argc, argv,
+//                 DIM,                // dimension ( = x = y) du tas
+//                 MAX_HEIGHT,         // hauteur maximale du tas
+//                 cb_get,                // callback func
+//                 cb_compute_seq);       // callback func
+// }
 
-int cb_seq_alternance(int argc, char **argv)
-{
-  display_init (argc, argv,
-              DIM,                // dimension ( = x = y) du tas
-              MAX_HEIGHT,         // hauteur maximale du tas
-              cb_get,                // callback func
-              cb_compute_seq_alternance);       // callback func
-}
+// int cb_seq_alternance(int argc, char **argv)
+// {
+//   display_init (argc, argv,
+//               DIM,                // dimension ( = x = y) du tas
+//               MAX_HEIGHT,         // hauteur maximale du tas
+//               cb_get,                // callback func
+//               cb_compute_seq_alternance);       // callback func
+// }
 
-int cb_parallel (int argc, char **argv)
-{
-  //omp_set_nested(1);
-  display_init (argc, argv,
-                DIM,                // dimension ( = x = y) du tas
-                MAX_HEIGHT,         // hauteur maximale du tas
-                cb_get,                // callback func
-                cb_compute_parallel);  // callback func
+// int cb_parallel (int argc, char **argv)
+// {
+//   //omp_set_nested(1);
+//   display_init (argc, argv,
+//                 DIM,                // dimension ( = x = y) du tas
+//                 MAX_HEIGHT,         // hauteur maximale du tas
+//                 cb_get,                // callback func
+//                 cb_compute_parallel);  // callback func
 
-}
+// }
 
-int cb_parallel_task (int argc, char **argv)
-{
-  #pragma omp parallel
+// int cb_parallel_task (int argc, char **argv)
+// {
+//   #pragma omp parallel
 
-  #pragma omp single
-  {
-    display_init (argc, argv,
-                  DIM,              // dimension ( = x = y) du tas
-                  MAX_HEIGHT,       // hauteur maximale du tas
-                  cb_get,              // callback func
-                  cb_compute_task);    // callback func
-  }
-}
+//   #pragma omp single
+//   {
+//     display_init (argc, argv,
+//                   DIM,              // dimension ( = x = y) du tas
+//                   MAX_HEIGHT,       // hauteur maximale du tas
+//                   cb_get,              // callback func
+//                   cb_compute_task);    // callback func
+//   }
+// }
+
+// int sans_gl()
+// {
+
+// }

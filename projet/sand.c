@@ -94,7 +94,7 @@ int main (int argc, char **argv)
 
 	if(argc<2){
     sand_init(1);
-		cb_seq(argc,argv);
+		seq(argc,argv);
 		return 0;
 	}
 
