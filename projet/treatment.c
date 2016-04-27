@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/time.h>
 
 #define MAX_HEIGHT  4
@@ -116,6 +117,7 @@ static inline void compute_cell(int x, int y, int div4)
 */
 static inline float *compute_seq(unsigned iterations)
 {
+  printf("\n----->%d<----\n",is_end);
   if(is_end == true)
   {
     return DYNAMIC_COLORING;
@@ -178,11 +180,12 @@ static inline float *compute_seq_alternative(unsigned iterations)
   return DYNAMIC_COLORING;
 }
 
-/*
-TODO : ne peut pas fonctionner tel quel.
-*/
+// utilisés par compute_seq_see_stabilize et compute_seq_reverse
 bool init = false;
 unsigned * tmp;
+/*
+TODO : ne peut pas fonctionner tel quel. revoir la conception de la ligne
+*//*
 static inline float *compute_seq_see_stabilize(unsigned iterations)
 {
   if(init == false){
@@ -220,25 +223,24 @@ static inline float *compute_seq_see_stabilize(unsigned iterations)
     }
   }
   return DYNAMIC_COLORING;
-}
+}*/
 
-
-/* methode nécessitant deux matrices : une écriture une lecture
-int bol = 0;
-unsigned * tmp;
-static inline float *compute_seq(unsigned iterations)
+// TODO : ne fonctionne pas ! plus le temps
+//methode nécessitant deux matrices : une écriture une lecture
+  /*
+static inline float *compute_seq_reverse(unsigned iterations)
 {
-  if(bol == 0){
+  if(init == false){
     tmp = malloc(sizeof(unsigned)*DIM*DIM);
-    bol = 1;
+    init = true;
   }
 
-  if(is_end != 1)
+  if(is_end == true)
   {
     print();
     return DYNAMIC_COLORING;
   }
-  is_end = 0;
+  is_end = false;
  
   for (unsigned i = 0; i < iterations; i++)
   {
@@ -247,29 +249,23 @@ static inline float *compute_seq(unsigned iterations)
       for (int y = 1; y < DIM-1; y++)
       {
         int val = ocean[x*DIM+y]%4;
-        //if(x > 0)
-          val += ocean[(x-1)*DIM+y]/4;
-        //if(x < DIM-1)
-          val += ocean[(x+1)*DIM+y]/4;
-        //if(y > 0)
-          val += ocean[x*DIM+y-1]/4;
-        //if(y < DIM-1)
-          val += ocean[x*DIM+y+1]/4;
+        val += ocean[(x-1)*DIM+y]/4;
+        val += ocean[(x+1)*DIM+y]/4;
+        val += ocean[x*DIM+y-1]/4;
+        val += ocean[x*DIM+y+1]/4;
+
         if(val != ocean[x*DIM+y]){
-          is_end = 1;
+          is_end = true;
         }
         tmp[x*DIM+y] = val;
       }
     }
-
-    //copy nécessaire pour fonctionner. aura nécessairement un temps horrible.
-
+    memcpy(ocean,tmp,DIM*DIM*sizeof(unsigned));
   }
   return DYNAMIC_COLORING;
-}
-*/
+}*/
 
-static inline float *compute_seq_doubleline(unsigned iterations)
+static inline float *compute_seq_multipleline(unsigned iterations)
 {
   if(is_end == true)
   {
@@ -389,6 +385,7 @@ float *compute_parallel_multiple_lines(unsigned iterations)
 {
   if(is_end == true)
   {
+//#pragma omp single
     return DYNAMIC_COLORING;
   }
   is_end = true;
@@ -415,17 +412,6 @@ float *compute_parallel_multiple_lines(unsigned iterations)
           }
         }
       }
-
-/*
-      for(int j = my_first_line ; j < my_first_line+nb_lines*(DIM-1); j++)
-      {
-        if(ocean[j] >= MAX_HEIGHT)
-        {
-          compute_cell(j / DIM, J % DIM, ocean[j]/4);
-        }
-      }
-*/
-
     }
   }
   return DYNAMIC_COLORING;
@@ -530,6 +516,13 @@ int display(int argc, char ** argv)
               get,                // callback func
               compute_seq_alternative); // callback func
       break;
+    //case 114 : //ascii r
+    /*  display_init (argc, argv,
+          DIM,                // dimension ( = x = y) du tas
+          MAX_HEIGHT,         // hauteur maximale du tas
+          get,                // callback func
+          compute_seq_reverse); // callback func
+      break;*/
     case 102 : //ascii f
       omp_set_nested(1);
       display_init (argc, argv,
@@ -569,7 +562,7 @@ void without_display(float * (*compute_func_t) (unsigned iterations))
   do{
     compute_func_t(10);
   }
-  while(is_end != 0);
+  while(is_end == false);
 }
 
 int performance(int argc, char ** argv)
@@ -590,9 +583,12 @@ int performance(int argc, char ** argv)
       printf("Sequential Algorithm | Double Loop\n");
       break;
     case 108 : //ascii l
-      without_display(compute_seq_doubleline);
+      without_display(compute_seq_multipleline);
       printf("Sequential Algorithm | 4 lines each loop turn\n");
       break;
+    //case 114 : //ascii r
+    //  without_display(compute_seq_reverse);
+    //  break;
     case 102 : //ascii f
       without_display(compute_parallel_for);
       printf("Parallel Algorithm\n");
