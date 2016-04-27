@@ -1,5 +1,4 @@
 __kernel void addmat(__global unsigned *A,
-		     __global float *B,
 		     __global float *C)
 {
 

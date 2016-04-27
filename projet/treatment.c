@@ -98,15 +98,11 @@ unsigned get (unsigned x, unsigned y)
 */
 static inline void compute_cell(int x, int y, int div4)
 {
-// is the pragma atoms used when there is no pragma parallel before ?
-#pragma omp atoms
-  {
-    ocean[x*DIM+y]      -= div4*4;
-    ocean[x*DIM+y+1]    += div4;
-    ocean[x*DIM+y-1]    += div4;
-    ocean[(x-1)*DIM+y]  += div4;
-    ocean[(x+1)*DIM+y]  += div4;
-  }
+  ocean[x*DIM+y]      -= div4*4;
+  ocean[x*DIM+y+1]    += div4;
+  ocean[x*DIM+y-1]    += div4;
+  ocean[(x-1)*DIM+y]  += div4;
+  ocean[(x+1)*DIM+y]  += div4;
   is_end = false;
 }
 
@@ -117,7 +113,6 @@ static inline void compute_cell(int x, int y, int div4)
 */
 static inline float *compute_seq(unsigned iterations)
 {
-  printf("\n----->%d<----\n",is_end);
   if(is_end == true)
   {
     return DYNAMIC_COLORING;
@@ -180,13 +175,14 @@ static inline float *compute_seq_alternative(unsigned iterations)
   return DYNAMIC_COLORING;
 }
 
-// utilisés par compute_seq_see_stabilize et compute_seq_reverse
-bool init = false;
-unsigned * tmp;
+// utilisés par compute_seq_find_stabilize et compute_seq_reverse
+//bool init = false;
+//unsigned * tmp;
 /*
 TODO : ne peut pas fonctionner tel quel. revoir la conception de la ligne
-*//*
-static inline float *compute_seq_see_stabilize(unsigned iterations)
+*/
+/*
+static inline float *compute_seq_find_stabilize(unsigned iterations)
 {
   if(init == false){
     tmp = calloc(DIM,sizeof(unsigned));
@@ -319,7 +315,7 @@ static inline float *compute_parallel_for(unsigned iterations)
  
   for (unsigned i = 0; i < iterations; i++)
   {
-#pragma omp parallel for //collapse(2)
+#pragma omp parallel for schedule(static,5) //firstprivate(ocean) //reduction(+:ocean)
     for (int x = 1; x < DIM-1; x++)
     {
       for (int y = 1; y < DIM-1; y++)
@@ -327,7 +323,17 @@ static inline float *compute_parallel_for(unsigned iterations)
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
           int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
+#pragma omp atomic
+            ocean[x*DIM+y]      -= div4*4;
+#pragma omp atomic
+            ocean[x*DIM+y+1]    += div4;
+#pragma omp atomic
+            ocean[x*DIM+y-1]    += div4;
+#pragma omp atomic
+            ocean[(x-1)*DIM+y]  += div4;
+#pragma omp atomic
+            ocean[(x+1)*DIM+y]  += div4;
+            is_end = false;
         }
       }
     }
@@ -381,50 +387,43 @@ static inline float *compute_parallel_for_alternative(unsigned iterations)
   * Compute fonction for collapsed treatment
 */
 //TODO
-float *compute_parallel_multiple_lines(unsigned iterations)
+  
+float *compute_parallel_multiple_lines(unsigned iterations){return NULL;}/*
 {
   if(is_end == true)
   {
-//#pragma omp single
     return DYNAMIC_COLORING;
   }
   is_end = true;
 
-  omp_set_num_threads(17);
+  //omp_set_num_threads(17);
   int nb_thread = omp_get_num_threads();
   int nb_lines = DIM / nb_thread;
-
+#pragma omp parallel
   for (unsigned i = 0; i < iterations; i++)
   {
-#pragma omp parallel
+    int thread_num = omp_get_thread_num();
+    int my_first_line = nb_lines*thread_num;
+    int my_last_line = my_first_line + nb_lines*DIM;
+#pragma omp for 
+    for (int x = my_first_line+1; ((x<&&(x < DIM-1)); x++)
     {
-      int thread_num = omp_get_thread_num();
-      int my_first_line = nb_lines*thread_num;
-      int my_last_line = my_first_line + nb_lines*DIM;
-      for (int x = my_first_line+1; ((x < my_last_line)&&(x < DIM-1)); x++)
+      for (int y = 1; y < DIM-1; y++)
       {
-        for (int y = 1; y < DIM-1; y++)
+        if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
-          if(ocean[x*DIM+y] >= MAX_HEIGHT)
-          {
-            int div4 = ocean[x*DIM+y]/4;
-            compute_cell(x,y,div4);
-          }
+          int div4 = ocean[x*DIM+y]/4;
+          compute_cell(x,y,div4);
         }
       }
     }
   }
   return DYNAMIC_COLORING;
-}
+}*/
 
 /** 
   * Adapted treatment to one case, with tasks specificities
 */
-static inline void treatment_task(int x, int y)
-{
-  int div4 = ocean[x*DIM+y]/4;
-  compute_cell(x,y,div4);
-}
 
 /** 
   * Compute fonction for task treatment
@@ -446,7 +445,8 @@ static inline float *compute_parallel_task(unsigned iterations)
 #pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
-          treatment_task(x,y);
+          int div4 = ocean[x*DIM+y]/4;
+          compute_cell(x,y,div4);
         }
       }
     }
@@ -474,7 +474,8 @@ static inline float *compute_parallel_task_alternative(unsigned iterations)
 #pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
-          treatment_task(x,y);
+          int div4 = ocean[x*DIM+y]/4;
+          compute_cell(x,y,div4);
         }
       }
     }
@@ -486,7 +487,8 @@ static inline float *compute_parallel_task_alternative(unsigned iterations)
 #pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
-          treatment_task(x,y);
+          int div4 = ocean[x*DIM+y]/4;
+          compute_cell(x,y,div4);
         }
       }
     }
@@ -617,7 +619,7 @@ int performance(int argc, char ** argv)
    
   temps = TIME_DIFF(t1,t2);
   printf("Algorithm time = %ld.%03ldms \n", temps/1000, temps%1000);
-  print();
+  //print();
   free(ocean);
 }
 
