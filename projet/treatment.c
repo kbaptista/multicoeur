@@ -83,7 +83,6 @@ unsigned get (unsigned x, unsigned y)
   return ocean[x*DIM+y];
 }
 
-
 // ------------------------------------------------------------------------------
 // -------------              Treatments Functions               ----------------
 // ------------------------------------------------------------------------------
@@ -288,7 +287,7 @@ static inline float *compute_parallel_for_alternative(unsigned iterations)
   * Compute fonction for collapsed treatment
 */
 //TODO
-float *compute_parallel_tiles(unsigned iterations)
+float *compute_parallel_multiple_lines(unsigned iterations)
 {
   if(!is_end)
   {
@@ -296,9 +295,9 @@ float *compute_parallel_tiles(unsigned iterations)
   }
   is_end = 0;
 
+  omp_set_num_threads(17);
   int nb_thread = omp_get_num_threads();
-  int nb_lines = DIM-1 / nb_thread;
-
+  int nb_lines = DIM / nb_thread;
 
   for (unsigned i = 0; i < iterations; i++)
   {
@@ -306,17 +305,18 @@ float *compute_parallel_tiles(unsigned iterations)
     {
       int thread_num = omp_get_thread_num();
       int my_first_line = nb_lines*thread_num;
-
-
-      // TODO: Kevin a une idée. le laisser faire
-      for (int x = 2; x < DIM-1; x=x+2)
+      int my_last_line = my_first_line + nb_lines*DIM;
+      for (int x = my_first_line+1; ((x < my_last_line)&&(x < DIM-1)); x++)
       {
-        for (int y = DIM-2; y > 0; y--)
+        for (int y = 1; y < DIM-1; y++)
         {
-
+          if(ocean[x*DIM+y] >= MAX_HEIGHT)
+          {
+            int div4 = ocean[x*DIM+y]/4;
+            compute_cell(x,y,div4);
+          }
         }
       }
-
 
 /*
       for(int j = my_first_line ; j < my_first_line+nb_lines*(DIM-1); j++)
@@ -452,12 +452,12 @@ int display(int argc, char ** argv)
                       compute_parallel_task);    // callback func
       }
       break;
-    case 105 : //ascii i
+    case 109 : //ascii m
       display_init (argc, argv,
                 DIM,                // dimension ( = x = y) du tas
                 MAX_HEIGHT,         // hauteur maximale du tas
                 get,                // callback func
-                compute_parallel_tiles);  // callback func
+                compute_parallel_multiple_lines);  // callback func
       break;
     default :
       printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
@@ -484,28 +484,36 @@ int performance(int argc, char ** argv)
   switch((int)argv[4][0])
   {
     case 115 : // ascii s
+      printf("Sequential Algorithm\n");
       without_display(compute_seq);
       break;
     case 83 : // ascii S
       without_display(compute_seq_alternative);
+      printf("Sequential Algorithm | Double Loop\n");
       break;
     case 108 : //ascii l
       without_display(compute_seq_doubleline);
+      printf("Sequential Algorithm | 4 lines each loop turn\n");
       break;
     case 102 : //ascii f
       without_display(compute_parallel_for);
+      printf("Parallel Algorithm\n");
       break;
     case 70 : //ascii F
       without_display(compute_parallel_for_alternative);
+      printf("Parallel Algorithm | Double Loop\n");
       break;
     case 116 : //ascii t
       without_display(compute_parallel_task);
+      printf("Parallel Task Algorithm\n");
       break;
     case 84 : //ascii T
       without_display(compute_parallel_task_alternative);
+      printf("Parallel Task Algorithm | Double Loop\n");
       break;
-    case 105 : //ascii i
-      without_display(compute_parallel_tiles);
+    case 109 : //ascii m
+      without_display(compute_parallel_multiple_lines);
+      printf("Parallel Algorithm | Multiple Lines\n");
       break;
     default :
       printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
@@ -515,6 +523,7 @@ int performance(int argc, char ** argv)
    
   temps = TIME_DIFF(t1,t2);
   printf("Algorithm time = %ld.%03ldms \n", temps/1000, temps%1000);
+  print();
   free(ocean);
 }
 
@@ -538,11 +547,11 @@ void treatment(int argc, char ** argv)
   {
     case 99 : //ascii c
       sand_init_center();
-      printf("Centered Case");
+      printf("Centered Case\n");
       break;
     case 104: //ascii h
       sand_init_homogeneous();
-      printf("Homogeneous Case");
+      printf("Homogeneous Case\n");
       break;
     default :
       printf("Unrecognize configuration. Please, read our manual by using ./sand\n");
