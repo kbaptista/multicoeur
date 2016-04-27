@@ -2,6 +2,7 @@
 #include "treatment.h"
 
 #include <omp.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -14,7 +15,7 @@
 unsigned DIM;
 unsigned *ocean;
 
-static unsigned is_end = 1;
+static bool is_end = false;
 
 // ------------------------------------------------------------------------------
 // -------------               Utility Functions                    -------------
@@ -56,7 +57,11 @@ void sand_init_homogeneous()
   {
     for (int y = 0; y < DIM; y++)
     {
-      ocean[x*DIM+y] = 5;
+      if(x > 0 && x < DIM-1 && y > 0 && y < DIM-1)
+        ocean[x*DIM+y] = 5;
+      else
+        
+        ocean[x*DIM+y] = 0;
     }
   }
 }
@@ -101,19 +106,21 @@ static inline void compute_cell(int x, int y, int div4)
     ocean[(x-1)*DIM+y]  += div4;
     ocean[(x+1)*DIM+y]  += div4;
   }
-  is_end = 1;
+  is_end = false;
 }
+
+
 
 /** 
   * Compute fonction for sequential treatment
 */
 static inline float *compute_seq(unsigned iterations)
 {
-  if(is_end!=1)
+  if(is_end == true)
   {
     return DYNAMIC_COLORING;
   }
-  is_end = 0;
+  is_end = true;
  
   for (unsigned i = 0; i < iterations; i++)
   {
@@ -137,11 +144,11 @@ static inline float *compute_seq(unsigned iterations)
 */
 static inline float *compute_seq_alternative(unsigned iterations)
 {
-  if(is_end!=1)
+  if(is_end == true)
   {
     return DYNAMIC_COLORING;
   }
-  is_end = 0;
+  is_end = true;
 
   for (unsigned i = 0; i < iterations; i++)
   {
@@ -171,13 +178,104 @@ static inline float *compute_seq_alternative(unsigned iterations)
   return DYNAMIC_COLORING;
 }
 
-static inline float *compute_seq_doubleline(unsigned iterations)
+/*
+TODO : ne peut pas fonctionner tel quel.
+*/
+bool init = false;
+unsigned * tmp;
+static inline float *compute_seq_see_stabilize(unsigned iterations)
 {
-  if(is_end!=1)
+  if(init == false){
+    tmp = calloc(DIM,sizeof(unsigned));
+    init = true;
+  }
+
+  if(is_end == true)
   {
+    return DYNAMIC_COLORING;
+    free(tmp);
+  }
+  is_end = true;
+ 
+  for (unsigned i = 0; i < iterations; i++)
+  {
+    for (int x = 1; x < DIM-1; x++)
+    {
+      if(tmp[i] == true)
+      {
+        for (int y = 1; y < DIM-1; y++)
+        {
+          if(ocean[x*DIM+y] >= MAX_HEIGHT)
+          {
+            int div4 = ocean[x*DIM+y]/4;
+            compute_cell(x,y,div4);
+            if(ocean[(x+1)*DIM+y] >= MAX_HEIGHT)
+              tmp[i+1] = true;
+            if(ocean[(x-1)*DIM+y] >= MAX_HEIGHT)
+              tmp[i-1] = true;
+          }
+        }
+      }
+
+    }
+  }
+  return DYNAMIC_COLORING;
+}
+
+
+/* methode nécessitant deux matrices : une écriture une lecture
+int bol = 0;
+unsigned * tmp;
+static inline float *compute_seq(unsigned iterations)
+{
+  if(bol == 0){
+    tmp = malloc(sizeof(unsigned)*DIM*DIM);
+    bol = 1;
+  }
+
+  if(is_end != 1)
+  {
+    print();
     return DYNAMIC_COLORING;
   }
   is_end = 0;
+ 
+  for (unsigned i = 0; i < iterations; i++)
+  {
+    for (int x = 1; x < DIM-1; x++)
+    {
+      for (int y = 1; y < DIM-1; y++)
+      {
+        int val = ocean[x*DIM+y]%4;
+        //if(x > 0)
+          val += ocean[(x-1)*DIM+y]/4;
+        //if(x < DIM-1)
+          val += ocean[(x+1)*DIM+y]/4;
+        //if(y > 0)
+          val += ocean[x*DIM+y-1]/4;
+        //if(y < DIM-1)
+          val += ocean[x*DIM+y+1]/4;
+        if(val != ocean[x*DIM+y]){
+          is_end = 1;
+        }
+        tmp[x*DIM+y] = val;
+      }
+    }
+
+    //copy nécessaire pour fonctionner. aura nécessairement un temps horrible.
+
+  }
+  return DYNAMIC_COLORING;
+}
+*/
+
+static inline float *compute_seq_doubleline(unsigned iterations)
+{
+  if(is_end == true)
+  {
+    return DYNAMIC_COLORING;
+  }
+  is_end = true;
 
   for (unsigned i = 0; i < iterations; i++)
   {
@@ -216,11 +314,11 @@ static inline float *compute_seq_doubleline(unsigned iterations)
 */
 static inline float *compute_parallel_for(unsigned iterations)
 {
-  if(is_end!=1)
+  if(is_end == true)
   {
     return DYNAMIC_COLORING;
   }
-  is_end = 0;
+  is_end = true;
 
  
   for (unsigned i = 0; i < iterations; i++)
@@ -247,11 +345,11 @@ static inline float *compute_parallel_for(unsigned iterations)
 static inline float *compute_parallel_for_alternative(unsigned iterations)
 {
 
-  if(!is_end)
+  if(is_end == true)
   {
     return DYNAMIC_COLORING;
   }
-  is_end = 0;
+  is_end = true;
 
   for (unsigned i = 0; i < iterations; i++)
   {
@@ -289,11 +387,11 @@ static inline float *compute_parallel_for_alternative(unsigned iterations)
 //TODO
 float *compute_parallel_multiple_lines(unsigned iterations)
 {
-  if(!is_end)
+  if(is_end == true)
   {
     return DYNAMIC_COLORING;
   }
-  is_end = 0;
+  is_end = true;
 
   omp_set_num_threads(17);
   int nb_thread = omp_get_num_threads();
@@ -347,11 +445,11 @@ static inline void treatment_task(int x, int y)
 */
 static inline float *compute_parallel_task(unsigned iterations)
 {
-  if(!is_end)
+  if(is_end == true)
   {
     return DYNAMIC_COLORING;
   }
-  is_end = 0;
+  is_end = true;
 
   for (unsigned i = 0; i < iterations; i++)
   {
@@ -375,11 +473,11 @@ static inline float *compute_parallel_task(unsigned iterations)
 */
 static inline float *compute_parallel_task_alternative(unsigned iterations)
 {
-  if(!is_end)
+  if(is_end == true)
   {
     return DYNAMIC_COLORING;
   }
-  is_end = 0;
+  is_end = true;
 
   for (unsigned i = 0; i < iterations; i++)
   {
