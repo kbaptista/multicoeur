@@ -320,13 +320,11 @@ static inline float *compute_parallel_for(unsigned iterations)
     for(int j = 0 ; j < DIM*DIM ; j++)
       ocean_private[j] = 0;
 
-
 #pragma omp for schedule(static,4)
         for (int x = 1; x < DIM-1; x++)
         {
           for (int y = 1; y < DIM-1; y++)
           {
-
             int val = ocean[x*DIM+y]%4;
             val += ocean[(x-1)*DIM+y]/4;
             val += ocean[(x+1)*DIM+y]/4;
@@ -337,9 +335,9 @@ static inline float *compute_parallel_for(unsigned iterations)
 
             if(ocean[x*DIM+y] >= MAX_HEIGHT)
               is_end = false;
-
           }
         }
+        
 #pragma omp for schedule(static,4)
       for (int x = 1; x < DIM-1; x++){
         for (int y = 1; y < DIM-1; y++){
@@ -347,7 +345,6 @@ static inline float *compute_parallel_for(unsigned iterations)
         }
       }
     }
-
   }
   return DYNAMIC_COLORING;
 }
