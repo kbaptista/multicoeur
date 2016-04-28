@@ -1,6 +1,7 @@
 #include "display.h"
 #include "treatment.h"
 
+#include <math.h>
 #include <omp.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -124,45 +125,6 @@ static inline float *compute_seq(unsigned iterations)
     for (int x = 1; x < DIM-1; x++)
     {
       for (int y = 1; y < DIM-1; y++)
-      {
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
-        }
-      }
-    }
-  }
-  return DYNAMIC_COLORING;
-}
-
-/** 
-  * Compute fonction for sequential treatment which alternate at every line | Alternative Method to use the cache differently
-*/
-static inline float *compute_seq_alternative(unsigned iterations)
-{
-  if(is_end == true)
-  {
-    return DYNAMIC_COLORING;
-  }
-  is_end = true;
-
-  for (unsigned i = 0; i < iterations; i++)
-  {
-    for (int x = 1; x < DIM-1; x=x+2)
-    {
-      for (int y = 1; y < DIM-1; y++)
-      {
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
-        }
-      } 
-    }
-    for (int x = 2; x < DIM-1; x=x+2)
-    {
-      for (int y = DIM-2; y > 0; y--)
       {
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
         {
@@ -317,8 +279,6 @@ static inline float *compute_parallel_for(unsigned iterations)
 #pragma omp parallel shared(is_end,ocean)
     {
     unsigned ocean_private[DIM*DIM];
-    for(int j = 0 ; j < DIM*DIM ; j++)
-      ocean_private[j] = 0;
 
 #pragma omp for schedule(static,4)
         for (int x = 1; x < DIM-1; x++)
@@ -337,11 +297,90 @@ static inline float *compute_parallel_for(unsigned iterations)
               is_end = false;
           }
         }
-        
+
 #pragma omp for schedule(static,4)
       for (int x = 1; x < DIM-1; x++){
         for (int y = 1; y < DIM-1; y++){
           ocean[x*DIM+y] = ocean_private[x*DIM+y];
+        }
+      }
+    }
+  }
+  return DYNAMIC_COLORING;
+}
+
+static inline float *compute_parallel_p_iteration(unsigned iterations)
+{
+  if(is_end == true)
+  {
+    return DYNAMIC_COLORING;
+  }
+  is_end = true;
+
+  unsigned nb_lines = round((DIM-2) / omp_get_max_threads());
+
+  //nb de lignes spécifiques au dernier thread : il prend la différence.
+  unsigned last_thread_lines = (DIM-2)/omp_get_max_threads() > (DIM-2)%nb_lines ? (DIM-2)%nb_lines+nb_lines : (DIM-2)%nb_lines;
+
+#pragma omp parallel shared(is_end, ocean, iterations) firstprivate(nb_lines)
+  {
+
+
+    unsigned my_num = omp_get_thread_num();
+    int table = 0;
+
+    // une valeur négative implique un dépassement de la matrice d'origine.
+    int begin = (my_num*nb_lines)-iterations; 
+    //int overflow_final = my_num==omp_get_max_threads()-1 ? (DIM-2) - ((my_num*nb_lines+last_thread_lines)+iterations):(DIM-2) - (((my_num+1)*nb_lines)+iterations);
+    //int final = my_num == omp_get_max_threads()-1 ? (my_num*nb_lines+last_thread_lines)+iterations : ((my_num+1)*nb_lines)+iterations;
+
+    unsigned ocean_private[DIM*((my_num==omp_get_max_threads()-1?last_thread_lines:nb_lines)+iterations*2)][2];
+
+    for (int x = 0, final = my_num==omp_get_max_threads()-1?last_thread_lines+iterations*2:nb_lines+iterations*2 ; x < final ; x++)
+    {
+      for(int y = 0 ; y < DIM ; y++)
+      {
+        if(begin+x > 0 && begin+x < DIM-1)
+        {
+          ocean_private[x*DIM+y][table] = ocean[(begin+x)*DIM+y];
+        }
+        else{
+          ocean_private[x*DIM+y][table] = 0;
+        }
+      }
+    }
+
+    //fin de l'initialisation
+
+    for (unsigned i = 1; i <= iterations; i++)
+    {
+      for (int x = i; x < i*2+(my_num==omp_get_max_threads()-1?last_thread_lines:nb_lines); x++)
+      {
+        for (int y = 1; y < DIM-1; y++)
+        {
+          //printf("\n %d[%d][%d]",my_num,x,y);
+          int val = ocean_private[x*DIM+y][table]%4 + 
+                    ocean_private[(x-1)*DIM+y][table]/4 +
+                    ocean_private[(x+1)*DIM+y][table]/4 +
+                    ocean_private[x*DIM+y-1][table]/4 +
+                    ocean_private[x*DIM+y+1][table]/4;
+
+          ocean_private[x*DIM+y][1-table] = val;
+
+          if(ocean_private[x*DIM+y][table] >= MAX_HEIGHT)
+            is_end = false;
+        }
+      }
+      table = 1-table;
+    }
+
+    for (int x = 0, final = my_num==omp_get_max_threads()-1?last_thread_lines+iterations*2:nb_lines+iterations*2 ; x < final ; x++)
+    {
+      for(int y = 1 ; y < DIM-1 ; y++)
+      {
+        if(begin+x > 0 && begin+x < DIM-1)
+        {
+          ocean[(begin+x)*DIM+y] = ocean_private[x*DIM+y][1-table];
         }
       }
     }
@@ -393,13 +432,6 @@ int display(int argc, char ** argv)
                 get,                // callback func
                 compute_seq);       // callback func
       break;
-    case 97 : //ascii a
-      display_init (argc, argv,
-              DIM,                // dimension ( = x = y) du tas
-              MAX_HEIGHT,         // hauteur maximale du tas
-              get,                // callback func
-              compute_seq_alternative); // callback func
-      break;
     case 102 : //ascii f
       omp_set_nested(1);
       display_init (argc, argv,
@@ -419,6 +451,14 @@ int display(int argc, char ** argv)
                       get,              // callback func
                       compute_parallel_task);    // callback func
       }
+      break;
+    case 105 : //ascii i
+      omp_set_nested(1);
+      display_init (argc, argv,
+              DIM,              // dimension ( = x = y) du tas
+              MAX_HEIGHT,       // hauteur maximale du tas
+              get,              // callback func
+              compute_parallel_p_iteration);    // callback func
       break;
     default :
       printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
@@ -448,10 +488,6 @@ int performance(int argc, char ** argv)
       printf("Sequential Algorithm\n");
       without_display(compute_seq);
       break;
-    case 83 : // ascii S
-      without_display(compute_seq_alternative);
-      printf("Sequential Algorithm | Double Loop\n");
-      break;
     case 108 : //ascii l
       without_display(compute_seq_multipleline);
       printf("Sequential Algorithm | 4 lines each loop turn\n");
@@ -462,6 +498,10 @@ int performance(int argc, char ** argv)
       break;
     case 116 : //ascii t
       without_display(compute_parallel_task);
+      printf("Parallel Task Algorithm\n");
+      break;
+    case 105 : //ascii i
+      without_display(compute_parallel_p_iteration);
       printf("Parallel Task Algorithm\n");
       break;
     default :
