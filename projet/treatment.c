@@ -312,118 +312,45 @@ static inline float *compute_parallel_for(unsigned iterations)
   }
   is_end = true;
 
- 
   for (unsigned i = 0; i < iterations; i++)
   {
-#pragma omp parallel for schedule(static,5) //firstprivate(ocean) //reduction(+:ocean)
-    for (int x = 1; x < DIM-1; x++)
+#pragma omp parallel shared(is_end,ocean)
     {
-      for (int y = 1; y < DIM-1; y++)
-      {
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
+    unsigned ocean_private[DIM*DIM];
+    for(int j = 0 ; j < DIM*DIM ; j++)
+      ocean_private[j] = 0;
+
+
+#pragma omp for schedule(static,4)
+        for (int x = 1; x < DIM-1; x++)
         {
-          int div4 = ocean[x*DIM+y]/4;
-#pragma omp atomic
-            ocean[x*DIM+y]      -= div4*4;
-#pragma omp atomic
-            ocean[x*DIM+y+1]    += div4;
-#pragma omp atomic
-            ocean[x*DIM+y-1]    += div4;
-#pragma omp atomic
-            ocean[(x-1)*DIM+y]  += div4;
-#pragma omp atomic
-            ocean[(x+1)*DIM+y]  += div4;
-            is_end = false;
+          for (int y = 1; y < DIM-1; y++)
+          {
+
+            int val = ocean[x*DIM+y]%4;
+            val += ocean[(x-1)*DIM+y]/4;
+            val += ocean[(x+1)*DIM+y]/4;
+            val += ocean[x*DIM+y-1]/4;
+            val += ocean[x*DIM+y+1]/4;
+
+            ocean_private[x*DIM+y] = val;
+
+            if(ocean[x*DIM+y] >= MAX_HEIGHT)
+              is_end = false;
+
+          }
+        }
+#pragma omp for schedule(static,4)
+      for (int x = 1; x < DIM-1; x++){
+        for (int y = 1; y < DIM-1; y++){
+          ocean[x*DIM+y] = ocean_private[x*DIM+y];
         }
       }
     }
+
   }
   return DYNAMIC_COLORING;
 }
-
-/** 
-  * Compute fonction for collapsed alternative treatment | Alternative Method to use the cache differently
-*/
-static inline float *compute_parallel_for_alternative(unsigned iterations)
-{
-
-  if(is_end == true)
-  {
-    return DYNAMIC_COLORING;
-  }
-  is_end = true;
-
-  for (unsigned i = 0; i < iterations; i++)
-  {
-#pragma omp parallel for
-    for (int x = 1; x < DIM-1; x=x+2)
-    {
-      for (int y = 1; y < DIM-1; y++)
-      {
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
-        }
-      } 
-    }
-#pragma omp parallel for
-    for (int x = 2; x < DIM-1; x=x+2)
-    {
-      for (int y = DIM-2; y > 0; y--)
-      {
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
-        }
-      }
-    }
-  }
-  return DYNAMIC_COLORING;
-}
-
-/** 
-  * Compute fonction for collapsed treatment
-*/
-//TODO
-  
-float *compute_parallel_multiple_lines(unsigned iterations){return NULL;}/*
-{
-  if(is_end == true)
-  {
-    return DYNAMIC_COLORING;
-  }
-  is_end = true;
-
-  //omp_set_num_threads(17);
-  int nb_thread = omp_get_num_threads();
-  int nb_lines = DIM / nb_thread;
-#pragma omp parallel
-  for (unsigned i = 0; i < iterations; i++)
-  {
-    int thread_num = omp_get_thread_num();
-    int my_first_line = nb_lines*thread_num;
-    int my_last_line = my_first_line + nb_lines*DIM;
-#pragma omp for 
-    for (int x = my_first_line+1; ((x<&&(x < DIM-1)); x++)
-    {
-      for (int y = 1; y < DIM-1; y++)
-      {
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
-        }
-      }
-    }
-  }
-  return DYNAMIC_COLORING;
-}*/
-
-/** 
-  * Adapted treatment to one case, with tasks specificities
-*/
 
 /** 
   * Compute fonction for task treatment
@@ -441,48 +368,6 @@ static inline float *compute_parallel_task(unsigned iterations)
     for (int x = 1; x < DIM-1; x++)
     {
       for (int y = 1; y < DIM-1; y++)
-      {
-#pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
-        }
-      }
-    }
-  }
-  return DYNAMIC_COLORING;
-}
-
-/** 
-  * Compute fonction for task treatment | Alternative Method to move the cache differently
-*/
-static inline float *compute_parallel_task_alternative(unsigned iterations)
-{
-  if(is_end == true)
-  {
-    return DYNAMIC_COLORING;
-  }
-  is_end = true;
-
-  for (unsigned i = 0; i < iterations; i++)
-  {
-    for (int x = 1; x < DIM-1; x =x+2)
-    {
-      for (int y = 1; y < DIM-1; y++)
-      {
-#pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
-        }
-      }
-    }
-
-    for (int x = 2; x < DIM-1; x = x+2)
-    {
-      for (int y = DIM-2; y > 0 ; y--)
       {
 #pragma omp task depend(in:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1]) depend(out:ocean[x*DIM+y], ocean[(x-1)*DIM+y], ocean[(x+1)*DIM+y], ocean[x*DIM+y-1], ocean[x*DIM+y+1])
         if(ocean[x*DIM+y] >= MAX_HEIGHT)
@@ -518,13 +403,6 @@ int display(int argc, char ** argv)
               get,                // callback func
               compute_seq_alternative); // callback func
       break;
-    //case 114 : //ascii r
-    /*  display_init (argc, argv,
-          DIM,                // dimension ( = x = y) du tas
-          MAX_HEIGHT,         // hauteur maximale du tas
-          get,                // callback func
-          compute_seq_reverse); // callback func
-      break;*/
     case 102 : //ascii f
       omp_set_nested(1);
       display_init (argc, argv,
@@ -544,13 +422,6 @@ int display(int argc, char ** argv)
                       get,              // callback func
                       compute_parallel_task);    // callback func
       }
-      break;
-    case 109 : //ascii m
-      display_init (argc, argv,
-                DIM,                // dimension ( = x = y) du tas
-                MAX_HEIGHT,         // hauteur maximale du tas
-                get,                // callback func
-                compute_parallel_multiple_lines);  // callback func
       break;
     default :
       printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
@@ -588,28 +459,13 @@ int performance(int argc, char ** argv)
       without_display(compute_seq_multipleline);
       printf("Sequential Algorithm | 4 lines each loop turn\n");
       break;
-    //case 114 : //ascii r
-    //  without_display(compute_seq_reverse);
-    //  break;
     case 102 : //ascii f
       without_display(compute_parallel_for);
       printf("Parallel Algorithm\n");
       break;
-    case 70 : //ascii F
-      without_display(compute_parallel_for_alternative);
-      printf("Parallel Algorithm | Double Loop\n");
-      break;
     case 116 : //ascii t
       without_display(compute_parallel_task);
       printf("Parallel Task Algorithm\n");
-      break;
-    case 84 : //ascii T
-      without_display(compute_parallel_task_alternative);
-      printf("Parallel Task Algorithm | Double Loop\n");
-      break;
-    case 109 : //ascii m
-      without_display(compute_parallel_multiple_lines);
-      printf("Parallel Algorithm | Multiple Lines\n");
       break;
     default :
       printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");
