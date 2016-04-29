@@ -137,9 +137,7 @@ static inline float *compute_seq(unsigned iterations)
   return DYNAMIC_COLORING;
 }
 
-// utilisés par compute_seq_find_stabilize et compute_seq_reverse
-//bool init = false;
-//unsigned * tmp;
+
 /*
 TODO : ne peut pas fonctionner tel quel. revoir la conception de la ligne
 */
@@ -147,7 +145,6 @@ TODO : ne peut pas fonctionner tel quel. revoir la conception de la ligne
 static inline float *compute_seq_find_stabilize(unsigned iterations)
 {
   if(init == false){
-    tmp = calloc(DIM,sizeof(unsigned));
     init = true;
   }
 
@@ -223,7 +220,7 @@ static inline float *compute_seq_reverse(unsigned iterations)
   return DYNAMIC_COLORING;
 }*/
 
-static inline float *compute_seq_multipleline(unsigned iterations)
+static inline float *compute_seq_multipleline_expensif(unsigned iterations)
 {
   if(is_end == true)
   {
@@ -263,6 +260,106 @@ static inline float *compute_seq_multipleline(unsigned iterations)
   return DYNAMIC_COLORING;
 }
 
+static inline float *compute_seq_multipleline_introspectif(unsigned iterations)
+{
+  if(is_end == true)
+  {
+    return DYNAMIC_COLORING;
+  }
+  is_end = true;
+
+  int table = 0;
+  int table_2 = DIM*DIM;
+
+  for (unsigned i = 0; i < iterations; i++)
+  {
+    for (int x = 1; x < DIM-1; x++)
+    {
+      for (int y = 1; y < DIM-5; y+=4)
+      {
+          int val = ocean[table+x*DIM+y]%4 + 
+                    ocean[table+(x-1)*DIM+y]/4 +
+                    ocean[table+(x+1)*DIM+y]/4 +
+                    ocean[table+x*DIM+y-1]/4 +
+                    ocean[table+x*DIM+y+1]/4;
+          ocean[table_2+x*DIM+y] = val;
+
+          val = ocean[table+x*DIM+y+1]%4 + 
+                ocean[table+(x-1)*DIM+y+1]/4 +
+                ocean[table+(x+1)*DIM+y+1]/4 +
+                ocean[table+x*DIM+y]/4 +
+                ocean[table+x*DIM+y+2]/4;
+          ocean[table_2+x*DIM+y+1] = val;
+
+          val = ocean[table+x*DIM+y+2]%4 + 
+                ocean[table+(x-1)*DIM+y+2]/4 +
+                ocean[table+(x+1)*DIM+y+2]/4 +
+                ocean[table+x*DIM+y+1]/4 +
+                ocean[table+x*DIM+y+3]/4;
+          ocean[table_2+x*DIM+y+2] = val;
+
+          val = ocean[table+x*DIM+y+3]%4 + 
+                ocean[table+(x-1)*DIM+y+3]/4 +
+                ocean[table+(x+1)*DIM+y+3]/4 +
+                ocean[table+x*DIM+y+2]/4 +
+                ocean[table+x*DIM+y+4]/4;
+          ocean[table_2+x*DIM+y+3] = val;
+
+          if(ocean[table+x*DIM+y] >= MAX_HEIGHT || ocean[table+(x-1)*DIM+y] >= MAX_HEIGHT || 
+            ocean[table+(x+1)*DIM+y] >= MAX_HEIGHT || ocean[table+x*DIM+y-1] >= MAX_HEIGHT || ocean[table+x*DIM+y+1] >= MAX_HEIGHT)
+            is_end = false;
+        /*
+        
+        if(ocean[x*DIM+y+1] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x*DIM+y+1]/4;
+          compute_cell(x,y+1,div4);
+        }
+        if(ocean[x*DIM+y+2] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x*DIM+y+2]/4;
+          compute_cell(x,y+2,div4);
+        }
+        if(ocean[x*DIM+y+3] >= MAX_HEIGHT)
+        {
+          int div4 = ocean[x*DIM+y+3]/4;
+          compute_cell(x,y+3,div4);
+        }*/
+      }
+      //boucle nécessaire pour finir le traitement de la matrice si DIM-1 n'est pas multiple de 5
+      if((DIM-1)%5 != 0){
+        for (int y = (DIM-1)%5; y < DIM-1; y++){
+          int val = ocean[table+x*DIM+y]%4 + 
+                      ocean[table+(x-1)*DIM+y]/4 +
+                      ocean[table+(x+1)*DIM+y]/4 +
+                      ocean[table+x*DIM+y-1]/4 +
+                      ocean[table+x*DIM+y+1]/4;
+          ocean[table+x*DIM+y] = val;
+          if(ocean[table+x*DIM+y] >= MAX_HEIGHT)
+            is_end = false;
+        }
+      }
+    }
+    table = table == 0 ? DIM*DIM:0;
+    table_2 = table_2 == 0 ? DIM*DIM:0;
+  }
+
+//si on termine les itérations avec écriture dans la seconde table, on doit recopier son contenu dans la première
+  if(table != 0)
+  {
+    for (int x = 1; x < DIM-1; x++)
+    {
+      for (int y = 1; y < DIM-1; y++)
+      {
+        ocean[table+x*DIM+y] = ocean[table_2+x*DIM+y];
+      }
+    }
+  }
+
+  print();
+  return DYNAMIC_COLORING;
+}
+
 /** 
   * Compute fonction for collapsed treatment 
 */
@@ -285,11 +382,11 @@ static inline float *compute_parallel_for(unsigned iterations)
         {
           for (int y = 1; y < DIM-1; y++)
           {
-            int val = ocean[x*DIM+y]%4;
-            val += ocean[(x-1)*DIM+y]/4;
-            val += ocean[(x+1)*DIM+y]/4;
-            val += ocean[x*DIM+y-1]/4;
-            val += ocean[x*DIM+y+1]/4;
+          int val = ocean_private[x*DIM+y]%4 + 
+                    ocean_private[(x-1)*DIM+y]/4 +
+                    ocean_private[(x+1)*DIM+y]/4 +
+                    ocean_private[x*DIM+y-1]/4 +
+                    ocean_private[x*DIM+y+1]/4;
 
             ocean_private[x*DIM+y] = val;
 
@@ -421,7 +518,7 @@ static inline float *compute_parallel_p_iteration(unsigned iterations)
   }
   //tmp
     print();
-  exit(0);
+  // exit(0);
 
   return DYNAMIC_COLORING;
 }
@@ -546,6 +643,18 @@ int performance(int argc, char ** argv)
       without_display(compute_seq);
       break;
     case 108 : //ascii l
+      // on a besoin de deux matrices dans ce cas particulier
+      ocean = realloc(ocean,sizeof(unsigned)*DIM*DIM*2);
+
+      //initialisation de la seconde matrice
+      for (int x = 0; x < DIM; x++)
+      {
+        for (int y = 0; y < DIM; y++)
+        {
+          ocean[DIM*DIM+x*DIM+y] = 0;
+        }
+      }
+
       without_display(compute_seq_multipleline);
       printf("Sequential Algorithm | 4 lines each loop turn\n");
       break;
