@@ -306,6 +306,7 @@ static inline float *compute_parallel_for(unsigned iterations)
       }
     }
   }
+
   return DYNAMIC_COLORING;
 }
 
@@ -320,19 +321,14 @@ static inline float *compute_parallel_p_iteration(unsigned iterations)
   unsigned nb_lines = round((DIM-2) / omp_get_max_threads());
 
   //nb de lignes spécifiques au dernier thread : il prend la différence.
-  unsigned last_thread_lines = (DIM-2)/omp_get_max_threads() > (DIM-2)%nb_lines ? (DIM-2)%nb_lines+nb_lines : (DIM-2)%nb_lines;
+  unsigned last_thread_lines = nb_lines*omp_get_max_threads() != DIM-2 ? nb_lines+abs(DIM-2 - nb_lines*omp_get_max_threads()) : nb_lines;
 
-#pragma omp parallel shared(is_end, ocean, iterations) firstprivate(nb_lines)
+#pragma omp parallel shared(is_end, iterations) firstprivate(nb_lines)
   {
-
-
     unsigned my_num = omp_get_thread_num();
     int table = 0;
 
-    // une valeur négative implique un dépassement de la matrice d'origine.
-    int begin = (my_num*nb_lines)-iterations; 
-    //int overflow_final = my_num==omp_get_max_threads()-1 ? (DIM-2) - ((my_num*nb_lines+last_thread_lines)+iterations):(DIM-2) - (((my_num+1)*nb_lines)+iterations);
-    //int final = my_num == omp_get_max_threads()-1 ? (my_num*nb_lines+last_thread_lines)+iterations : ((my_num+1)*nb_lines)+iterations;
+    int begin = ((my_num)*nb_lines)-iterations; 
 
     unsigned ocean_private[DIM*((my_num==omp_get_max_threads()-1?last_thread_lines:nb_lines)+iterations*2)][2];
 
@@ -342,23 +338,41 @@ static inline float *compute_parallel_p_iteration(unsigned iterations)
       {
         if(begin+x > 0 && begin+x < DIM-1)
         {
-          ocean_private[x*DIM+y][table] = ocean[(begin+x)*DIM+y];
+          ocean_private[x*DIM+y][table] = ocean[(begin+x/*+1*/)*DIM+y];
+          // if(my_num == 1 && y == 0)
+          //   printf("  (%d)\n  ",x);
         }
         else{
           ocean_private[x*DIM+y][table] = 0;
         }
+        ocean_private[x*DIM+y][1-table] = 0;
+      }
+    }
+
+    if(my_num == 1){
+      printf(" --- pre-iteration --- je traite %d\n",begin+iterations);
+      for (int x = 0, final = my_num==omp_get_max_threads()-1?last_thread_lines+iterations*2:nb_lines+iterations*2; x < final ; x++)
+      {
+        for(int y = 0 ; y < DIM ; y++)
+        {
+          printf("%d ",ocean_private[x*DIM+y][table]);
+          printf("%d - ",ocean_private[x*DIM+y][1-table]);
+        }
+        printf("[%d]\n",x);
       }
     }
 
     //fin de l'initialisation
 
+
+
     for (unsigned i = 1; i <= iterations; i++)
     {
-      for (int x = i; x < i*2+(my_num==omp_get_max_threads()-1?last_thread_lines:nb_lines); x++)
+      int taille = (iterations-i)*2+(my_num==omp_get_max_threads()-1?last_thread_lines:nb_lines);
+      for (int x = i; x < i+taille; x++)
       {
         for (int y = 1; y < DIM-1; y++)
         {
-          //printf("\n %d[%d][%d]",my_num,x,y);
           int val = ocean_private[x*DIM+y][table]%4 + 
                     ocean_private[(x-1)*DIM+y][table]/4 +
                     ocean_private[(x+1)*DIM+y][table]/4 +
@@ -370,23 +384,66 @@ static inline float *compute_parallel_p_iteration(unsigned iterations)
           if(ocean_private[x*DIM+y][table] >= MAX_HEIGHT)
             is_end = false;
         }
+        
       }
+
+      
       table = 1-table;
     }
+//tmp
+    // if(my_num == 10){
+    //   printf(" --- post_iterations ---\n");
+    //   for (int x = 0, final = my_num==omp_get_max_threads()-1?last_thread_lines+iterations*2:nb_lines+iterations*2; x < final ; x++)
+    //   {
+    //     for(int y = 0 ; y < DIM ; y++)
+    //     {
+    //       printf("%d ",ocean_private[x*DIM+y][table]);
+    //       printf("%d - ",ocean_private[x*DIM+y][1-table]);
+    //     }
+    //     printf("[%d]\n",x);
+    //   }
+    // }
 
-    for (int x = 0, final = my_num==omp_get_max_threads()-1?last_thread_lines+iterations*2:nb_lines+iterations*2 ; x < final ; x++)
+
+    begin = my_num*nb_lines;
+    for (int x = 0, final = my_num==omp_get_max_threads()-1?last_thread_lines:nb_lines; x < final ; x++)
     {
       for(int y = 1 ; y < DIM-1 ; y++)
       {
-        if(begin+x > 0 && begin+x < DIM-1)
+        if(begin+x+1 > 0 && begin+x < DIM-1)
         {
-          ocean[(begin+x)*DIM+y] = ocean_private[x*DIM+y][1-table];
+#pragma omp critical
+          ocean[(begin+x+1)*DIM+y] = ocean_private[(x+iterations)*DIM+y][table];
+          // printf("\n- %d - %d -\n",(begin+x+1), ocean_private[(x+iterations)*DIM+y][table]);
         }
       }
     }
   }
+  //tmp
+    print();
+  exit(0);
+
   return DYNAMIC_COLORING;
 }
+
+/*
+  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0 
+  0   1   2   5   1   3   3   3   3   3   3   1   5   2   1   0 
+  0   2   3   1   5   1   3   3   3   3   1   5   1   3   2   0 
+  0   5   1   7   3   7   3   5   5   3   7   3   7   1   5   0 
+  0   1   5   3   7   3   7   3   3   7   3   7   3   5   1   0 
+  0   3   1   7   3   7   3   5   5   3   7   3   7   1   3   0 
+  0   3   3   3   7   3   5   5   5   5   3   7   3   3   3   0 
+  0   3   3   5   3   5   5   5   5   5   5   3   5   3   3   0 
+  0   3   3   5   3   5   5   5   5   5   5   3   5   3   3   0 
+  0   3   3   3   7   3   5   5   5   5   3   7   3   3   3   0 
+  0   3   1   7   3   7   3   5   5   3   7   3   7   1   3   0 
+  0   1   5   3   7   3   7   3   3   7   3   7   3   5   1   0 
+  0   5   1   7   3   7   3   5   5   3   7   3   7   1   5   0 
+  0   2   3   1   5   1   3   3   3   3   1   5   1   3   2   0 
+  0   1   2   5   1   3   3   3   3   3   3   1   5   2   1   0 
+  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0 
+*/
 
 /** 
   * Compute fonction for task treatment
