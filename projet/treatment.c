@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include "sand_cl.h"
 
 #define MAX_HEIGHT  4
 
@@ -136,42 +137,20 @@ static inline float *compute_seq(unsigned iterations)
   return DYNAMIC_COLORING;
 }
 
+unsigned ocean_private;
+
 /** 
   * Compute fonction for sequential treatment which alternate at every line | Alternative Method to use the cache differently
 */
 static inline float *compute_seq_alternative(unsigned iterations)
 {
+
   if(is_end == true)
   {
     return DYNAMIC_COLORING;
   }
   is_end = true;
 
-  for (unsigned i = 0; i < iterations; i++)
-  {
-    for (int x = 1; x < DIM-1; x=x+2)
-    {
-      for (int y = 1; y < DIM-1; y++)
-      {
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
-        }
-      } 
-    }
-    for (int x = 2; x < DIM-1; x=x+2)
-    {
-      for (int y = DIM-2; y > 0; y--)
-      {
-        if(ocean[x*DIM+y] >= MAX_HEIGHT)
-        {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell(x,y,div4);
-        }
-      }
-    }
-  }
   return DYNAMIC_COLORING;
 }
 
@@ -317,10 +296,7 @@ static inline float *compute_parallel_for(unsigned iterations)
 #pragma omp parallel shared(is_end,ocean)
     {
     unsigned ocean_private[DIM*DIM];
-    for(int j = 0 ; j < DIM*DIM ; j++)
-      ocean_private[j] = 0;
-
-
+    
 #pragma omp for schedule(static,4)
         for (int x = 1; x < DIM-1; x++)
         {
@@ -381,6 +357,16 @@ static inline float *compute_parallel_task(unsigned iterations)
   return DYNAMIC_COLORING;
 }
 
+static inline compute_CL(unsigned iterations)
+{
+  cl_platform_id pf[MAX_PLATFORMS];
+  cl_uint nb_platforms = 0;
+  cl_int err;                            // error code returned from api calls
+  cl_device_type device_type = CL_DEVICE_TYPE_GPU;
+
+  
+}
+
 // --------------------------------------------------------------------------------------------------------
 // ----------------------------- Initials functions to adapt at arguments  --------------------------------
 // --------------------------------------------------------------------------------------------------------
@@ -431,7 +417,7 @@ int display(int argc, char ** argv)
 
 void without_display(float * (*compute_func_t) (unsigned iterations))
 {
-  // TODO : prendre une décision pour la valeur de interation par défault.
+  // TODO : prendre une décision pour la valeur de iterations par défault.
   do{
     compute_func_t(10);
   }
@@ -466,6 +452,10 @@ int performance(int argc, char ** argv)
     case 116 : //ascii t
       without_display(compute_parallel_task);
       printf("Parallel Task Algorithm\n");
+      break;
+    case 99 : //ascii c
+      without_display(compute_CL);
+      printf("OpenCL Algorithm\n");
       break;
     default :
       printf("Unrecognize Algorithm. Please, read our manual by using ./sand\n");

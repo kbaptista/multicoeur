@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/time.h>
 #ifdef __APPLE__
 #  include <OpenCL/opencl.h>
@@ -16,107 +17,130 @@
 
 // Application-specific data
 //
-#define KERNEL_NAME  "addmat"
+#define KERNEL_NAME  "sand"
 
-unsigned SIZE = 1024;
+
+unsigned SIZE = 64;
 unsigned TILE = 16;
 unsigned TILE2 = 1;
 
-float *A_data, *B_data, *C_data;
+unsigned *ocean;
 
-cl_mem A_buffer;  // device memory used for input data
-cl_mem B_buffer;  // device memory used for input data
-cl_mem C_buffer;  // device memory used for output data
+cl_mem ocean_buffer;
+cl_mem output_buffer;
 
+static bool is_end = false ;
 
+unsigned get (unsigned x, unsigned y)
+{
+  return ocean[x*SIZE+y];
+}
+
+static void print()
+{
+  for (int x = 0; x < SIZE; x++)
+  {
+    printf("[%3d]",x );
+    for (int y = 0; y < SIZE; y++) 
+    {
+      printf(" %3d ",ocean[x*SIZE+y]);
+    }
+    printf("\n");
+  }
+    printf("     ");
+  for (int i = 0; i < SIZE; ++i)
+  {
+    printf("[%3d]",i );
+  }
+    printf("\n");
+}
+
+void sand_init_homogeneous()
+{
+  for (int x = 0; x < SIZE; x++)
+  {
+    for (int y = 0; y < SIZE; y++)
+    {
+      if(x > 0 && x < SIZE-1 && y > 0 && y < SIZE-1)
+        ocean[x*SIZE+y] = 5;
+      else
+        
+        ocean[x*SIZE+y] = 0;
+    }
+  }
+}
+
+/** 
+  * initialize matrices with no one grain except in the middle case which have 100000 grain.
+*/
+void sand_init_center()
+{
+  int center = 100000;
+  for (int x = 0; x < SIZE; x++)
+  {
+    for (int y = 0; y < SIZE; y++)
+    {
+      ocean[x*SIZE+y] = 0;
+    }
+  }
+  ocean[SIZE*SIZE/2+SIZE/2] = center;
+}
 static void alloc_buffers_and_user_data(cl_context context)
 {
   // CPU side
-  A_data = malloc(SIZE * SIZE * sizeof(float));
-  B_data = malloc(SIZE * SIZE * sizeof(float));
-  C_data = malloc(SIZE * SIZE * sizeof(float));
+  ocean = malloc(SIZE * SIZE * sizeof(unsigned));
 
-  srand(1234);
-  for(int i = 0; i < SIZE * SIZE; i++) {
-    A_data[i] = rand();
-    B_data[i] = rand();
-  }
+  sand_init_center();
 
   // Allocate buffers inside device memory
   //
-  A_buffer = clCreateBuffer(context,  CL_MEM_READ_WRITE,  sizeof(float) * SIZE * SIZE, NULL, NULL);
-  if (!A_buffer)
+  ocean_buffer = clCreateBuffer(context,  CL_MEM_READ_WRITE,  sizeof(unsigned) * SIZE * SIZE, NULL, NULL);
+  if (!ocean_buffer)
     error("Failed to allocate input buffer A");
-
-  B_buffer = clCreateBuffer(context,  CL_MEM_READ_WRITE,  sizeof(float) * SIZE * SIZE, NULL, NULL);
-  if (!B_buffer)
-    error("Failed to allocate input buffer B");
-
-  C_buffer = clCreateBuffer(context,  CL_MEM_READ_WRITE,  sizeof(float) * SIZE * SIZE, NULL, NULL);
-  if (!C_buffer)
-    error("Failed to allocate output buffer C");
+  output_buffer = clCreateBuffer(context,  CL_MEM_READ_WRITE,  sizeof(unsigned) * SIZE * SIZE, NULL, NULL);
+  if (!output_buffer)
+    error("Failed to allocate input buffer A");
 }
 
 static void check_output_data(void)
 {
+  //TODO vérification temporaire
   unsigned correct = 0;
-  struct timeval t1,t2;
-  double timeInMicroseconds;
-  
-  for(int i = 0; i < SIZE * SIZE; i++) {
-    float expected = A_data[i] + B_data[i];
-
-    if(C_data[i] == expected)
+  int s = (SIZE-1)*(SIZE-1);
+  for(int x = 1; x < s ; x++)
+    if (((int(*))output_buffer)[x]<4)
       correct++;
-  }
-  printf("\tComputed '%d/%d' correct values!\n", correct, SIZE * SIZE);
-  gettimeofday (&t1,NULL);
-  
-  for (unsigned iter = 0; iter < ITERATIONS; iter++) 
-    for(int i = 0; i < SIZE * SIZE; i++) 
-      C_data[i]= A_data[i] + B_data[i];
 
-  gettimeofday (&t2,NULL);
-  
-  // Check performance
-  //
-  timeInMicroseconds = (double)TIME_DIFF(t1, t2) / ITERATIONS;
-  
-  printf("\tComputation performed in %lf µs over one cpu\n",
-	 timeInMicroseconds);
-  
+  printf("\tComputed '%d/%d' correct values!\n", correct, (SIZE-1)*(SIZE-1));
 }
 
 static void free_buffers_and_user_data(void)
 {
-  free(A_data);
-  free(B_data);
-  free(C_data);
+  free(ocean);
 
-  clReleaseMemObject(A_buffer);
-  clReleaseMemObject(B_buffer);
-  clReleaseMemObject(C_buffer);
+  clReleaseMemObject(ocean_buffer);
+  clReleaseMemObject(output_buffer);
 }
 
 static void send_input(cl_command_queue queue)
 {
   cl_int err;
 
-  err = clEnqueueWriteBuffer(queue, A_buffer, CL_TRUE, 0,
-			     sizeof(float) * SIZE * SIZE, A_data, 0, NULL, NULL);
+  err = clEnqueueWriteBuffer(queue, ocean_buffer, CL_TRUE, 0,
+			     sizeof(unsigned) * SIZE * SIZE, ocean, 0, NULL, NULL);
   check(err, "Failed to write to input array A");
 
-  err = clEnqueueWriteBuffer(queue, B_buffer, CL_TRUE, 0,
-			     sizeof(float) * SIZE * SIZE, B_data, 0, NULL, NULL);
-  check(err, "Failed to write to input array B");
+  err = clEnqueueWriteBuffer(queue, output_buffer, CL_TRUE, 0,
+           sizeof(unsigned) * SIZE * SIZE, ocean, 0, NULL, NULL);
 }
 
 static void retrieve_output(cl_command_queue queue)
 {
   cl_int err;
 
-  err = clEnqueueReadBuffer(queue, C_buffer, CL_TRUE, 0,
-			    sizeof(float) * SIZE * SIZE, C_data, 0, NULL, NULL );  
+  int s = SIZE * SIZE;
+  err = clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0,
+			    sizeof(unsigned) * s, ocean, 0, NULL, NULL );  
   check(err, "Failed to read output array C");
 }
 
@@ -130,33 +154,43 @@ int main(int argc, char** argv)
   // Filter args
   //
   argv++;
-  while (argc > 1) {
-    if(!strcmp(*argv, "-g") || !strcmp(*argv, "--gpu-only")) {
+  while (argc > 1)
+  {
+    if(!strcmp(*argv, "-g") || !strcmp(*argv, "--gpu-only"))
+    {
       if(device_type != CL_DEVICE_TYPE_ALL)
-	error("--gpu-only and --cpu-only can not be specified at the same time\n");
+        error("--gpu-only and --cpu-only can not be specified at the same time\n");
       device_type = CL_DEVICE_TYPE_GPU;
-    } else if(!strcmp(*argv, "-c") || !strcmp(*argv, "--cpu-only")) {
+    } 
+    else if(!strcmp(*argv, "-c") || !strcmp(*argv, "--cpu-only"))
+    {
       if(device_type != CL_DEVICE_TYPE_ALL)
-	error("--gpu-only and --cpu-only can not be specified at the same time\n");
+        error("--gpu-only and --cpu-only can not be specified at the same time\n");
       device_type = CL_DEVICE_TYPE_CPU;
-    } else if(!strcmp(*argv, "-s") || !strcmp(*argv, "--size")) {
+    }
+    else if(!strcmp(*argv, "-s") || !strcmp(*argv, "--size"))
+    {
       unsigned i;
       int r;
       char c;
 
       r = sscanf(argv[1], "%u%[mMkK]", &SIZE, &c);
 
-      if (r == 2) {
-	if (c == 'k' || c == 'K')
-	  SIZE *= 1024;
-	else if (c == 'm' || c == 'M')
-	  SIZE *= 1024 * 1024;
+      if (r == 2)
+      {
+        if (c == 'k' || c == 'K')
+          SIZE *= 1024;
+        else if (c == 'm' || c == 'M')
+          SIZE *= 1024 * 1024;
       }
 
-      argc--; argv++;
-    } else
+      argc--;
+      argv++;
+    }
+    else
       break;
-    argc--; argv++;
+    argc--;
+    argv++;
   }
 
   if(argc > 1)
@@ -174,7 +208,8 @@ int main(int argc, char** argv)
 
   // For each platform do
   //
-  for (cl_int p = 0; p < nb_platforms; p++) {
+  for (cl_int p = 0; p < nb_platforms; p++)
+  {
     cl_uint num;
     int platform_valid = 1;
     char name[1024], vendor[1024];
@@ -205,9 +240,10 @@ int main(int argc, char** argv)
     context = clCreateContext (0, nb_devices, devices, NULL, NULL, &err);
     check(err, "Failed to create compute context");
 
+
     // Load program source into memory
     //
-    const char	*opencl_prog;
+    const char  *opencl_prog;
     opencl_prog = file_load(KERNEL_FILE);
 
     // Attach program source to context
@@ -221,26 +257,26 @@ int main(int argc, char** argv)
       char flags[1024];
 
       sprintf (flags,
-	       "-cl-mad-enable -cl-fast-relaxed-math -DSIZE=%d -DTILE=%d -DTYPE=%s",
-	       SIZE, TILE, "float");
+         "-cl-mad-enable -cl-fast-relaxed-math -DSIZE=%d -DTILE=%d -DTYPE=%s",
+         SIZE, TILE, "float");
 
       err = clBuildProgram (program, 0, NULL, flags, NULL, NULL);
       if(err != CL_SUCCESS) {
-	size_t len;
+        size_t len;
 
-	// Display compiler log
-	//
-	clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, 0, NULL, &len);
-	{
-	  char buffer[len+1];
+        // Display compiler log
+        //
+        clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, 0, NULL, &len);
+        {
+          char buffer[len+1];
 
-	  fprintf(stderr, "--- Compiler log ---\n");
-	  clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
-	  fprintf(stderr, "%s\n", buffer);
-	  fprintf(stderr, "--------------------\n");
-	}
-	if(err != CL_SUCCESS)
-	  error("Failed to build program!\n");
+          fprintf(stderr, "--- Compiler log ---\n");
+          clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
+          fprintf(stderr, "%s\n", buffer);
+          fprintf(stderr, "--------------------\n");
+        }
+        if(err != CL_SUCCESS)
+          error("Failed to build program!\n");
       }
     }
 
@@ -255,7 +291,8 @@ int main(int argc, char** argv)
 
     // Iterate over devices
     //
-    for(cl_int dev = 0; dev < nb_devices; dev++) {
+    for(cl_int dev = 0; dev < nb_devices; dev++)
+    {
       cl_command_queue queue;
 
       char name[1024];
@@ -279,52 +316,52 @@ int main(int argc, char** argv)
 
       // Execute kernel
       //
+      //for (int i = 0; i < 3; ++i)
       {
-	cl_event prof_event;
-	cl_ulong start, end;
-	struct timeval t1,t2;
-	double timeInMicroseconds;
-	size_t global[2] = { SIZE, SIZE };  // global domain size for our calculation
-	size_t local[2]  = { TILE, TILE2 };   // local domain size for our calculation
+      	cl_event prof_event;
+      	cl_ulong start, end;
+      	struct timeval t1,t2;
+      	double timeInMicroseconds;
+      	size_t global[1] = { (SIZE-2) * (SIZE-2)};  // global domain size for our calculation
+      	size_t local[1]  = { 2 };   // local domain size for our calculation
 
-	printf("\t%dx%d Threads in workgroups of %dx%d\n", global[0], global[1], local[0], local[1]);
+      	printf("\t%d Threads in workgroups of %d\n", global[0], local[0]);
 
-	// Set kernel arguments
-	//
-	err = 0;
-	err  = clSetKernelArg(kernel, 0, sizeof(cl_mem), &A_buffer);
-	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &B_buffer);
-	err |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &C_buffer);
-	check(err, "Failed to set kernel arguments");
+      	// Set kernel arguments
+      	//
+      	err = 0;
+      	err  = clSetKernelArg(kernel, 0, sizeof(cl_mem), &ocean_buffer);
+        err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &output_buffer);
+      	check(err, "Failed to set kernel arguments");
 
-	gettimeofday (&t1, NULL);
+      	gettimeofday (&t1, NULL);
 
-	for (unsigned iter = 0; iter < ITERATIONS; iter++) {
-	  err = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global, local,
-				       0, NULL, &prof_event);
-	  check(err, "Failed to execute kernel");
-	}
+      	// for (unsigned iter = 0; iter < ITERATIONS; iter++)
+        // {
+      	  err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global, local,
+      				       0, NULL, &prof_event);
+      	  check(err, "Failed to execute kernel");
+      	// }
 
-	// Wait for the command commands to get serviced before reading back results
-	//
-	clFinish(queue);
+      	// Wait for the command commands to get serviced before reading back results
+      	//
+      	clFinish(queue);
 
-	gettimeofday (&t2,NULL);
+      	gettimeofday (&t2,NULL);
 
-	// Check performance
-	//
-	timeInMicroseconds = (double)TIME_DIFF(t1, t2) / ITERATIONS;
+      	// Check performance
+      	//
+      	timeInMicroseconds = (double)TIME_DIFF(t1, t2); // ITERATIONS;
 
-	printf("\tComputation performed in %lf µs over device #%d\n",
-	       timeInMicroseconds,
-	       dev);
+      	printf("\tComputation performed in %lf µs over device #%d\n", timeInMicroseconds,dev);
 
-	clReleaseEvent(prof_event);
+      	clReleaseEvent(prof_event);
       }
 
       // Read back the results from the device to verify the output
       //
       retrieve_output(queue);
+      
 
       // Validate computation
       //
@@ -332,6 +369,7 @@ int main(int argc, char** argv)
 
       clReleaseCommandQueue(queue);
     }
+      print(); 
 
     // Cleanup
     //
@@ -341,7 +379,6 @@ int main(int argc, char** argv)
     clReleaseProgram(program);
     clReleaseContext(context);
   }
-
 
   return 0;
 }
