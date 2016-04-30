@@ -639,7 +639,8 @@ void appMotion(int x, int y)
   glutPostRedisplay();
 }
 
-void display_init (int argc, char **argv, unsigned dim, unsigned max_height,
+void display_init (int argc, char **argv, 
+      unsigned dim, unsigned max_height,
 		   get_func_t get_func,
 		   compute_func_t compute_func)
 {
