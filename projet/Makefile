@@ -16,7 +16,7 @@ endif
 
 default: $(PROG)
 
-$(PROG): sand.o display.o treatment.o
+$(PROG): treatment.o display.o treatment.o
 	$(CC) -o $@ $(LDFLAGS) $^ $(LDLIBS) 
 
 clean:
