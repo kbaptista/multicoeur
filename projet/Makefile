@@ -1,28 +1,25 @@
-CC := gcc
-ARCH    := $(shell uname -s | tr a-z A-Z)
+ARCH            := $(shell uname -s | tr a-z A-Z)
+CFLAGS		:= -std=c99 -O3
 
-PROG	:= sand
-
-CFLAGS	:=	-g  -O3 -std=c99 -Wno-deprecated-declarations -fopenmp
 ifeq ($(ARCH),DARWIN)
-CFLAGS	+=	-I /opt/local/include 
-LDFLAGS	+=	-L /opt/local/include
-LDLIBS	+=	-framework GLUT -framework OpenGL -framework OpenCL
+LDLIBS		:= -framework OpenCL
 else
-LDLIBS	:= -lm -lOpenCL -lGL -lGLU -lglut -fopenmp
+LDLIBS		:= -lm -lOpenCL -lGL -lGLU -lglut
 endif
 
-.phony: default clean
+CL_SOURCE	:= $(wildcard *.cl)
+OBJECT		:= $(CL_SOURCE:.cl=.o)
+EXEC		:= $(CL_SOURCE:.cl=)
 
-default: $(PROG)
+CFLAGS		+= -DKERNEL_FILE=\"$(CL_SOURCE)\"
 
-$(PROG): sand.o display.o treatment.o
-	$(CC) -o $@ $(LDFLAGS) $^ $(LDLIBS) 
+target: $(EXEC)
+
+$(EXEC): util.o display.o
+
+$(OBJECT): util.h display.h
+
+util.o: util.h
 
 clean:
-	rm -rf *.o $(PROG) $(COMPARER)
-
-
-
-
-
+	rm -rf $(EXEC) *.o

@@ -9,6 +9,7 @@
 #  include <CL/opencl.h>
 #endif
 #include "util.h"
+#include "display.h"
 
 #define MAX_PLATFORMS 3
 #define MAX_DEVICES   5
@@ -19,15 +20,19 @@
 //
 #define KERNEL_NAME  "sand"
 
+char init = 'c';
+
 
 unsigned SIZE = 64;
 unsigned TILE = 16;
 unsigned TILE2 = 1;
 
 unsigned *ocean;
+int res = 0 ;
 
 cl_mem ocean_buffer;
 cl_mem output_buffer;
+cl_mem res_buffer;
 
 static bool is_end = false ;
 
@@ -90,16 +95,30 @@ static void alloc_buffers_and_user_data(cl_context context)
   // CPU side
   ocean = malloc(SIZE * SIZE * sizeof(unsigned));
 
-  sand_init_center();
+  switch((int)init)
+  {
+    case 99 :
+      sand_init_center();
+      break;
+    case 104 :
+      sand_init_homogeneous();
+      break;
+    default :
+      sand_init_homogeneous();
+      break;
+  }
 
   // Allocate buffers inside device memory
   //
   ocean_buffer = clCreateBuffer(context,  CL_MEM_READ_WRITE,  sizeof(unsigned) * SIZE * SIZE, NULL, NULL);
   if (!ocean_buffer)
-    error("Failed to allocate input buffer A");
+    error("Failed to allocate ocean_buffer");
   output_buffer = clCreateBuffer(context,  CL_MEM_READ_WRITE,  sizeof(unsigned) * SIZE * SIZE, NULL, NULL);
   if (!output_buffer)
-    error("Failed to allocate input buffer A");
+    error("Failed to allocate output_buffer");
+  res_buffer = clCreateBuffer(context,  CL_MEM_READ_WRITE,  sizeof(int), NULL, NULL);
+  if (!output_buffer)
+    error("Failed to allocate res_buffer");
 }
 
 static void check_output_data(void)
@@ -120,6 +139,7 @@ static void free_buffers_and_user_data(void)
 
   clReleaseMemObject(ocean_buffer);
   clReleaseMemObject(output_buffer);
+  clReleaseMemObject(res_buffer);
 }
 
 static void send_input(cl_command_queue queue)
@@ -128,10 +148,16 @@ static void send_input(cl_command_queue queue)
 
   err = clEnqueueWriteBuffer(queue, ocean_buffer, CL_TRUE, 0,
 			     sizeof(unsigned) * SIZE * SIZE, ocean, 0, NULL, NULL);
-  check(err, "Failed to write to input array A");
+  check(err, "Failed to write to ocean_buffer");
 
   err = clEnqueueWriteBuffer(queue, output_buffer, CL_TRUE, 0,
            sizeof(unsigned) * SIZE * SIZE, ocean, 0, NULL, NULL);
+  check(err, "Failed to write to output_buffer");
+
+  err = clEnqueueWriteBuffer(queue, res_buffer, CL_TRUE, 0,
+           sizeof(int), &res, 0, NULL, NULL);
+  check(err, "Failed to write to res_buffer");
+  
 }
 
 static void retrieve_output(cl_command_queue queue)
@@ -140,64 +166,23 @@ static void retrieve_output(cl_command_queue queue)
 
   int s = SIZE * SIZE;
   err = clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0,
-			    sizeof(unsigned) * s, ocean, 0, NULL, NULL );  
-  check(err, "Failed to read output array C");
+          sizeof(unsigned) * s, ocean, 0, NULL, NULL );  
+  check(err, "Failed to read output_buffer");
+
+  err = clEnqueueReadBuffer(queue, res_buffer, CL_TRUE, 0,
+			    sizeof(int), &res, 0, NULL, NULL );  
+  check(err, "Failed to read res_buffer");
 }
 
-int main(int argc, char** argv)
+
+float * compute_cl(unsigned iterations)
 {
   cl_platform_id pf[MAX_PLATFORMS];
   cl_uint nb_platforms = 0;
   cl_int err;                            // error code returned from api calls
   cl_device_type device_type = CL_DEVICE_TYPE_ALL;
 
-  // Filter args
-  //
-  argv++;
-  while (argc > 1)
-  {
-    if(!strcmp(*argv, "-g") || !strcmp(*argv, "--gpu-only"))
-    {
-      if(device_type != CL_DEVICE_TYPE_ALL)
-        error("--gpu-only and --cpu-only can not be specified at the same time\n");
-      device_type = CL_DEVICE_TYPE_GPU;
-    } 
-    else if(!strcmp(*argv, "-c") || !strcmp(*argv, "--cpu-only"))
-    {
-      if(device_type != CL_DEVICE_TYPE_ALL)
-        error("--gpu-only and --cpu-only can not be specified at the same time\n");
-      device_type = CL_DEVICE_TYPE_CPU;
-    }
-    else if(!strcmp(*argv, "-s") || !strcmp(*argv, "--size"))
-    {
-      unsigned i;
-      int r;
-      char c;
-
-      r = sscanf(argv[1], "%u%[mMkK]", &SIZE, &c);
-
-      if (r == 2)
-      {
-        if (c == 'k' || c == 'K')
-          SIZE *= 1024;
-        else if (c == 'm' || c == 'M')
-          SIZE *= 1024 * 1024;
-      }
-
-      argc--;
-      argv++;
-    }
-    else
-      break;
-    argc--;
-    argv++;
-  }
-
-  if(argc > 1)
-    TILE = atoi(*argv);
-
-  if(argc > 2)
-    TILE2 = atoi(argv[1]);
+  int end = 0;
 
   // Get list of OpenCL platforms detected
   //
@@ -312,29 +297,33 @@ int main(int argc, char** argv)
 
       // Write our data set into device buffer
       //
-      send_input(queue);
+      //send_input(queue);
 
-      // Execute kernel
-      //
-      //for (int i = 0; i < 3; ++i)
+      // Execute kernel 
+
+        double timeInMicroseconds;
+        struct timeval t1,t2;
+        gettimeofday (&t1, NULL);
+      do
       {
-      	cl_event prof_event;
-      	cl_ulong start, end;
-      	struct timeval t1,t2;
-      	double timeInMicroseconds;
-      	size_t global[1] = { (SIZE-2) * (SIZE-2)};  // global domain size for our calculation
-      	size_t local[1]  = { 2 };   // local domain size for our calculation
+        res = 0 ;
+        cl_event prof_event;
+        cl_ulong start, end;
+        size_t global[1] = { (SIZE-2) * (SIZE-2)};  // global domain size for our calculation
+        size_t local[1]  = { 2 };   // local domain size for our calculation
 
-      	printf("\t%d Threads in workgroups of %d\n", global[0], local[0]);
+        //printf("\t%d Threads in workgroups of %d\n", global[0], local[0]);
 
-      	// Set kernel arguments
-      	//
-      	err = 0;
-      	err  = clSetKernelArg(kernel, 0, sizeof(cl_mem), &ocean_buffer);
+        send_input(queue);
+
+        // Set kernel arguments
+        //
+        err = 0;
+        err  = clSetKernelArg(kernel, 0, sizeof(cl_mem), &ocean_buffer);
         err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &output_buffer);
-      	check(err, "Failed to set kernel arguments");
+        err |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &res_buffer);
+        check(err, "Failed to set kernel arguments");
 
-      	gettimeofday (&t1, NULL);
 
       	// for (unsigned iter = 0; iter < ITERATIONS; iter++)
         // {
@@ -347,16 +336,16 @@ int main(int argc, char** argv)
       	//
       	clFinish(queue);
 
+
+        // Check performance
+        //
+
+
+        clReleaseEvent(prof_event);
+      }while(!end);
       	gettimeofday (&t2,NULL);
-
-      	// Check performance
-      	//
-      	timeInMicroseconds = (double)TIME_DIFF(t1, t2); // ITERATIONS;
-
-      	printf("\tComputation performed in %lf µs over device #%d\n", timeInMicroseconds,dev);
-
-      	clReleaseEvent(prof_event);
-      }
+        timeInMicroseconds = (double)TIME_DIFF(t1, t2); // ITERATIONS;
+        printf("\tComputation performed in %lf µs over device #%d\n", timeInMicroseconds,dev);
 
       // Read back the results from the device to verify the output
       //
@@ -369,7 +358,6 @@ int main(int argc, char** argv)
 
       clReleaseCommandQueue(queue);
     }
-      print(); 
 
     // Cleanup
     //
@@ -379,6 +367,36 @@ int main(int argc, char** argv)
     clReleaseProgram(program);
     clReleaseContext(context);
   }
+
+  return DYNAMIC_COLORING;
+}
+
+static char * man = {"usage : ./sand_cl <GUI> <INITIALIZATION> <SIZE>\n\n"
+    "\t-GUI can be :\n"
+    "\t\t- 0 to disable GUI\n"
+    "\t\t- 1 to enable GUI\n"
+    "\t-INITIALIZATION can be :\n"
+    "\t\t- h : it starts the homogeneous case ;\n"
+    "\t\t- c : it starts the centered case ;\n"};
+
+#define MAX_HEIGHT  4
+int main(int argc, char *argv[])
+{
+  /* code */
+
+  argv++;
+  if(argc>2){
+    init = argv[1][0];
+    compute_cl(10);
+   /* else display_init (argc, argv,
+                      SIZE,                    // dimensions ( = x = y)
+                      MAX_HEIGHT,             // maximum number of grains in the square
+                      get,                    // callback func
+                      compute_cl);  // callback func*/
+  }
+  else
+    printf("%s\n", man);
+  //print();
 
   return 0;
 }
