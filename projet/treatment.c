@@ -116,9 +116,7 @@ static inline void compute_cell_expander(int x, int y, int div4)
 static inline unsigned compute_cell_gatherer(int x, int y, int table)
 {
   unsigned val = ocean[table+x*DIM+y]%4 + ocean[table+(x-1)*DIM+y]/4 + ocean[table+(x+1)*DIM+y]/4 + ocean[table+x*DIM+y-1]/4 + ocean[table+x*DIM+y+1]/4;
-  if (val >= MAX_HEIGHT ) is_end = false ;
-
-  //printf("\n1:[%d] %d = %d + %d + %d + %d + %d \n",x,val,ocean[table+x*DIM+y]%4,ocean[table+(x-1)*DIM+y]/4,ocean[table+(x+1)*DIM+y]/4,ocean[table+x*DIM+y-1]/4,ocean[table+x*DIM+y+1]/4);
+  if (val  != ocean[table+x*DIM+y]) is_end = false ;
   return val;
 }
 
@@ -308,54 +306,6 @@ static inline float *compute_seq_multipleline_gatherer(unsigned iterations)
   return DYNAMIC_COLORING;
 }
 
-static inline float *compute_parallel_for_gatherer2(unsigned iterations)
-{
-  if(is_end == true)
-  {
-    return DYNAMIC_COLORING;
-  }
-  is_end = true;
-
-  for (unsigned i = 0; i < iterations; i++)
-  {
-#pragma omp parallel shared(is_end,ocean)
-    {
-    unsigned ocean_private[DIM*DIM];
-    for(int j = 0 ; j < DIM*DIM ; j++)
-      ocean_private[j] = 0;
-
-
-#pragma omp for schedule(static,4)
-        for (int x = 1; x < DIM-1; x++)
-        {
-          for (int y = 1; y < DIM-1; y++)
-          {
-
-            int val = ocean[x*DIM+y]%4;
-            val += ocean[(x-1)*DIM+y]/4;
-            val += ocean[(x+1)*DIM+y]/4;
-            val += ocean[x*DIM+y-1]/4;
-            val += ocean[x*DIM+y+1]/4;
-
-            ocean_private[x*DIM+y] = val;
-
-            if(ocean[x*DIM+y] >= MAX_HEIGHT)
-              is_end = false;
-
-          }
-        }
-#pragma omp for schedule(static,4)
-      for (int x = 1; x < DIM-1; x++){
-        for (int y = 1; y < DIM-1; y++){
-          ocean[x*DIM+y] = ocean_private[x*DIM+y];
-        }
-      }
-    }
-
-  }
-  return DYNAMIC_COLORING;
-}
-
 /** 
   * Compute fonction for collapsed treatment 
 */
@@ -406,6 +356,69 @@ static inline float *compute_parallel_for_gatherer(unsigned iterations)
   return DYNAMIC_COLORING;
 }
 
+
+void compute_parallel_p_iteration_inside(int iterations, int nb_lines, int my_lines, int my_num)
+{
+  int table = 0;
+  int begin = my_num*nb_lines-iterations; 
+  unsigned ocean_private[DIM*(my_lines+iterations*2)][2];
+  unsigned taille = my_lines+iterations*2;
+
+  for (int x = 0 ; x < taille ; x++)
+  {
+    for(int y = 0 ; y < DIM ; y++)
+    {
+      if(begin+x > 0 && begin+x < DIM-1)
+      {
+        ocean_private[x*DIM+y][table] = ocean[(begin+x+1)*DIM+y];
+      }
+      else{
+        ocean_private[x*DIM+y][table] = 0;
+      }
+      ocean_private[x*DIM+y][1-table] = 0;
+    }
+  }
+
+#pragma omp barrier
+  //fin de l'initialisation
+
+  for (unsigned i = 1; i <= iterations; i++)
+  {
+    taille = (iterations-i)*2+my_lines;
+    //tmp
+    for (int x = i; x < i+taille; x++)
+    {
+      for (int y = 1; y < DIM-1; y++)
+      {
+        int val = ocean_private[x*DIM+y][table]%4 + 
+                  ocean_private[(x-1)*DIM+y][table]/4 +
+                  ocean_private[(x+1)*DIM+y][table]/4 +
+                  ocean_private[x*DIM+y-1][table]/4 +
+                  ocean_private[x*DIM+y+1][table]/4;
+
+        ocean_private[x*DIM+y][1-table] = val;
+
+        if(ocean_private[x*DIM+y][table] >= MAX_HEIGHT)
+          is_end = false;
+      }
+    }
+    table = 1-table;
+  }
+
+  begin = begin+iterations;
+  for (int x = 0; x < my_lines ; x++)
+  {
+    for(int y = 1 ; y < DIM-1 ; y++)
+    {
+#pragma omp critical
+      ocean[(begin+x+1)*DIM+y] = ocean_private[(iterations+x)*DIM+y][1-table];
+    }
+  }
+}
+
+/** 
+  * Compute fonction for p iteration synchronization.
+*/
 static inline float *compute_parallel_p_iteration(unsigned iterations)
 {
   if(is_end == true)
@@ -416,112 +429,20 @@ static inline float *compute_parallel_p_iteration(unsigned iterations)
 
   unsigned nb_lines = round((DIM-2) / omp_get_max_threads());
 
-  //nb de lignes spécifiques au dernier thread : il prend la différence.
-  unsigned last_thread_lines = nb_lines*omp_get_max_threads() != DIM-2 ? nb_lines+abs(DIM-2 - nb_lines*omp_get_max_threads()) : nb_lines;
+  //nombre de lignes spécifiques au dernier thread : il prend/retire la différence.
+  unsigned last_thread_lines = nb_lines*omp_get_max_threads() != DIM-2 ? nb_lines+ DIM-2 - nb_lines*omp_get_max_threads() : nb_lines;
 
-#pragma omp parallel shared(is_end, iterations) firstprivate(nb_lines)
+#pragma omp parallel shared(is_end, iterations,nb_lines)
   {
     unsigned my_num = omp_get_thread_num();
-    int table = 0;
-
-    int begin = ((my_num)*nb_lines)-iterations; 
-
-    unsigned ocean_private[DIM*((my_num==omp_get_max_threads()-1?last_thread_lines:nb_lines)+iterations*2)][2];
-
-    for (int x = 0, final = my_num==omp_get_max_threads()-1?last_thread_lines+iterations*2:nb_lines+iterations*2 ; x < final ; x++)
-    {
-      for(int y = 0 ; y < DIM ; y++)
-      {
-        if(begin+x > 0 && begin+x < DIM-1)
-        {
-          ocean_private[x*DIM+y][table] = ocean[(begin+x/*+1*/)*DIM+y];
-        }
-        else{
-          ocean_private[x*DIM+y][table] = 0;
-        }
-        ocean_private[x*DIM+y][1-table] = 0;
-      }
-    }
-
-    if(my_num == 1){
-      printf(" --- pre-iteration --- je traite %d\n",begin+iterations);
-      for (int x = 0, final = my_num==omp_get_max_threads()-1?last_thread_lines+iterations*2:nb_lines+iterations*2; x < final ; x++)
-      {
-        for(int y = 0 ; y < DIM ; y++)
-        {
-          printf("%d ",ocean_private[x*DIM+y][table]);
-          printf("%d - ",ocean_private[x*DIM+y][1-table]);
-        }
-        printf("[%d]\n",x);
-      }
-    }
-
-    //fin de l'initialisation
-
-
-
-    for (unsigned i = 1; i <= iterations; i++)
-    {
-      int taille = (iterations-i)*2+(my_num==omp_get_max_threads()-1?last_thread_lines:nb_lines);
-      for (int x = i; x < i+taille; x++)
-      {
-        for (int y = 1; y < DIM-1; y++)
-        {
-          int val = ocean_private[x*DIM+y][table]%4 + 
-                    ocean_private[(x-1)*DIM+y][table]/4 +
-                    ocean_private[(x+1)*DIM+y][table]/4 +
-                    ocean_private[x*DIM+y-1][table]/4 +
-                    ocean_private[x*DIM+y+1][table]/4;
-
-          ocean_private[x*DIM+y][1-table] = val;
-
-          if(ocean_private[x*DIM+y][table] >= MAX_HEIGHT)
-            is_end = false;
-        }
-        
-      }
-
-      
-      table = 1-table;
-    }
-//tmp
-    // if(my_num == 10){
-    //   printf(" --- post_iterations ---\n");
-    //   for (int x = 0, final = my_num==omp_get_max_threads()-1?last_thread_lines+iterations*2:nb_lines+iterations*2; x < final ; x++)
-    //   {
-    //     for(int y = 0 ; y < DIM ; y++)
-    //     {
-    //       printf("%d ",ocean_private[x*DIM+y][table]);
-    //       printf("%d - ",ocean_private[x*DIM+y][1-table]);
-    //     }
-    //     printf("[%d]\n",x);
-    //   }
-    // }
-
-
-    begin = my_num*nb_lines;
-    for (int x = 0, final = my_num==omp_get_max_threads()-1?last_thread_lines:nb_lines; x < final ; x++)
-    {
-      for(int y = 1 ; y < DIM-1 ; y++)
-      {
-        if(begin+x+1 > 0 && begin+x < DIM-1)
-        {
-#pragma omp critical
-          ocean[(begin+x+1)*DIM+y] = ocean_private[(x+iterations)*DIM+y][table];
-          // printf("\n- %d - %d -\n",(begin+x+1), ocean_private[(x+iterations)*DIM+y][table]);
-        }
-      }
-    }
+    compute_parallel_p_iteration_inside(iterations,nb_lines,my_num==omp_get_max_threads()-1?last_thread_lines:nb_lines,my_num);
   }
-  //tmp
-    print();
-  // exit(0);
 
   return DYNAMIC_COLORING;
 }
 
 /** 
-  * Compute fonction for task treatment
+  * Compute fonction with task treatment
 */
 static inline float *compute_parallel_task(unsigned iterations)
 {
@@ -589,8 +510,9 @@ static char * man = {"usage : ./sand <GUI> <INITIALIZATION> <SIZE> <ALGORITHM>\n
     "\t\t- S : it runs the sequential gatherer method ;\n"
     "\t\t- u : it runs the sequential unwrapped expander method ;\n"
     "\t\t- U : it runs the sequential unwrapped gatherer method ;\n"
-    "\t\t- P : it runs the parallel gatherer method ;\n"
-    "\t\t- I : it runs the parallel gatherer method which synchronise each p iterations ;\n"};
+    "\t\t- F : it runs the parallel gatherer method ;\n"
+    "\t\t- P : it runs the parallel gatherer method which synchronise each p iterations ;\n"
+    "\t\t- t : it runs the parallel expander task method ;\n"};
 
 void treatment(int argc, char ** argv)
 {
@@ -699,7 +621,7 @@ void treatment(int argc, char ** argv)
       break;
 
     //case parallel gatherer which synchronise each p iterations
-    case 105 : //ascii i
+    case 80 : //ascii P
       printf("Parallel Gatherer P iterations Algorithm\n");
       //start the non-graphical version
       if (strtol(argv[1],NULL,10)==0) without_display(compute_parallel_p_iteration);
