@@ -117,6 +117,8 @@ static inline unsigned compute_cell_gatherer(int x, int y, int table)
 {
   unsigned val = ocean[table+x*DIM+y]%4 + ocean[table+(x-1)*DIM+y]/4 + ocean[table+(x+1)*DIM+y]/4 + ocean[table+x*DIM+y-1]/4 + ocean[table+x*DIM+y+1]/4;
   if (val >= MAX_HEIGHT ) is_end = false ;
+
+  //printf("\n1:[%d] %d = %d + %d + %d + %d + %d \n",x,val,ocean[table+x*DIM+y]%4,ocean[table+(x-1)*DIM+y]/4,ocean[table+(x+1)*DIM+y]/4,ocean[table+x*DIM+y-1]/4,ocean[table+x*DIM+y+1]/4);
   return val;
 }
 
@@ -266,19 +268,19 @@ static inline float *compute_seq_multipleline_gatherer(unsigned iterations)
         ocean[table_2+x*DIM+y+1] = compute_cell_gatherer(x,y+1,table);
         ocean[table_2+x*DIM+y+2] = compute_cell_gatherer(x,y+2,table);
         ocean[table_2+x*DIM+y+3] = compute_cell_gatherer(x,y+3,table);
+
       }
-      //boucle nécessaire pour finir le traitement de la matrice si DIM-1 n'est pas multiple de 5
-      // if((DIM-1)%5 != 0){
-      //   for (int y = (DIM-1)%5; y < DIM-1; y++){
-      //     int val = ocean[table+x*DIM+y]%4 + 
-      //                 ocean[table+(x-1)*DIM+y]/4 +
-      //                 ocean[table+(x+1)*DIM+y]/4 +
-      //                 ocean[table+x*DIM+y-1]/4 +
-      //                 ocean[table+x*DIM+y+1]/4;
-      //     ocean[table+x*DIM+y] = val;
-      //     if(ocean[table+x*DIM+y] >= MAX_HEIGHT)
-      //       is_end = false;
+      // boucle nécessaire pour finir le traitement de la matrice si DIM-1 n'est pas multiple de 5
+      int res = (DIM-2)%4;
+      if(res!= 0)
+      {
+        for (int y = res; y < DIM-1; y++)
+        {
+          ocean[table_2+x*DIM+y] = compute_cell_gatherer(x,y,table);
+        }
+      }
     }
+
     //switch table after each iteration
     if (table==0)
     {
@@ -290,6 +292,7 @@ static inline float *compute_seq_multipleline_gatherer(unsigned iterations)
       table = 0;
       table_2 = DIM*DIM;
     }
+
   }
   //we have to be sure that the last calculated table is in the first half of ocean
   if(table != 0)
@@ -301,6 +304,54 @@ static inline float *compute_seq_multipleline_gatherer(unsigned iterations)
         ocean[table_2+x*DIM+y] = ocean[table+x*DIM+y];
       }
     }
+  }
+  return DYNAMIC_COLORING;
+}
+
+static inline float *compute_parallel_for_gatherer2(unsigned iterations)
+{
+  if(is_end == true)
+  {
+    return DYNAMIC_COLORING;
+  }
+  is_end = true;
+
+  for (unsigned i = 0; i < iterations; i++)
+  {
+#pragma omp parallel shared(is_end,ocean)
+    {
+    unsigned ocean_private[DIM*DIM];
+    for(int j = 0 ; j < DIM*DIM ; j++)
+      ocean_private[j] = 0;
+
+
+#pragma omp for schedule(static,4)
+        for (int x = 1; x < DIM-1; x++)
+        {
+          for (int y = 1; y < DIM-1; y++)
+          {
+
+            int val = ocean[x*DIM+y]%4;
+            val += ocean[(x-1)*DIM+y]/4;
+            val += ocean[(x+1)*DIM+y]/4;
+            val += ocean[x*DIM+y-1]/4;
+            val += ocean[x*DIM+y+1]/4;
+
+            ocean_private[x*DIM+y] = val;
+
+            if(ocean[x*DIM+y] >= MAX_HEIGHT)
+              is_end = false;
+
+          }
+        }
+#pragma omp for schedule(static,4)
+      for (int x = 1; x < DIM-1; x++){
+        for (int y = 1; y < DIM-1; y++){
+          ocean[x*DIM+y] = ocean_private[x*DIM+y];
+        }
+      }
+    }
+
   }
   return DYNAMIC_COLORING;
 }
@@ -321,24 +372,28 @@ static inline float *compute_parallel_for_gatherer(unsigned iterations)
 #pragma omp parallel shared(is_end,ocean)
     {
     unsigned ocean_private[DIM*DIM];
+    for(int j = 0 ; j < DIM*DIM ; j++)
+      ocean_private[j] = 0;
+
+
 #pragma omp for schedule(static,4)
         for (int x = 1; x < DIM-1; x++)
         {
           for (int y = 1; y < DIM-1; y++)
           {
-          int val = ocean_private[x*DIM+y]%4 + 
-                    ocean_private[(x-1)*DIM+y]/4 +
-                    ocean_private[(x+1)*DIM+y]/4 +
-                    ocean_private[x*DIM+y-1]/4 +
-                    ocean_private[x*DIM+y+1]/4;
+          int val = ocean[x*DIM+y]%4 + 
+                    ocean[(x-1)*DIM+y]/4 +
+                    ocean[(x+1)*DIM+y]/4 +
+                    ocean[x*DIM+y-1]/4 +
+                    ocean[x*DIM+y+1]/4;
 
             ocean_private[x*DIM+y] = val;
 
             if(ocean[x*DIM+y] >= MAX_HEIGHT)
               is_end = false;
+
           }
         }
-
 #pragma omp for schedule(static,4)
       for (int x = 1; x < DIM-1; x++){
         for (int y = 1; y < DIM-1; y++){
@@ -346,8 +401,8 @@ static inline float *compute_parallel_for_gatherer(unsigned iterations)
         }
       }
     }
-  }
 
+  }
   return DYNAMIC_COLORING;
 }
 
@@ -380,8 +435,6 @@ static inline float *compute_parallel_p_iteration(unsigned iterations)
         if(begin+x > 0 && begin+x < DIM-1)
         {
           ocean_private[x*DIM+y][table] = ocean[(begin+x/*+1*/)*DIM+y];
-          // if(my_num == 1 && y == 0)
-          //   printf("  (%d)\n  ",x);
         }
         else{
           ocean_private[x*DIM+y][table] = 0;
@@ -466,25 +519,6 @@ static inline float *compute_parallel_p_iteration(unsigned iterations)
 
   return DYNAMIC_COLORING;
 }
-
-/*
-  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0 
-  0   1   2   5   1   3   3   3   3   3   3   1   5   2   1   0 
-  0   2   3   1   5   1   3   3   3   3   1   5   1   3   2   0 
-  0   5   1   7   3   7   3   5   5   3   7   3   7   1   5   0 
-  0   1   5   3   7   3   7   3   3   7   3   7   3   5   1   0 
-  0   3   1   7   3   7   3   5   5   3   7   3   7   1   3   0 
-  0   3   3   3   7   3   5   5   5   5   3   7   3   3   3   0 
-  0   3   3   5   3   5   5   5   5   5   5   3   5   3   3   0 
-  0   3   3   5   3   5   5   5   5   5   5   3   5   3   3   0 
-  0   3   3   3   7   3   5   5   5   5   3   7   3   3   3   0 
-  0   3   1   7   3   7   3   5   5   3   7   3   7   1   3   0 
-  0   1   5   3   7   3   7   3   3   7   3   7   3   5   1   0 
-  0   5   1   7   3   7   3   5   5   3   7   3   7   1   5   0 
-  0   2   3   1   5   1   3   3   3   3   1   5   1   3   2   0 
-  0   1   2   5   1   3   3   3   3   3   3   1   5   2   1   0 
-  0   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0 
-*/
 
 /** 
   * Compute fonction for task treatment
