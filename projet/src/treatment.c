@@ -228,6 +228,16 @@ static inline float *compute_seq_multipleline_expander(unsigned iterations)
           compute_cell_expander(x,y+3,div4);
         }
       } 
+      // boucle nécessaire pour finir le traitement de la matrice si DIM-1 n'est pas multiple de 4 
+      int res = (DIM-2)%4;
+      if(res!= 0)
+      {
+        for (int y = res; y < DIM-1; y++)
+        {
+          int div4 = ocean[x*DIM+y]/4;
+          compute_cell_expander(x,y,div4);
+        }
+      }
     }
   }
   return DYNAMIC_COLORING;
@@ -465,6 +475,9 @@ static inline float *compute_parallel_task(unsigned iterations)
 // ----------------------------- Initials functions to adapt at arguments  --------------------------------
 // --------------------------------------------------------------------------------------------------------
 
+/*
+  function used when we don't use display to simulate all it calls.
+*/
 void without_display(float * (*compute_func_t) (unsigned iterations))
 {
   // TODO : prendre une décision pour la valeur de iterations par défault.
@@ -486,7 +499,93 @@ void expand_ocean(){
   }
 }
 
-static char * man = {"usage : ./sand <GUI> <INITIALIZATION> <SIZE> <ALGORITHM>\n\n"
+
+
+// void speedup_inside_init(int algo, int config, int iter)
+// {
+//   switch(algo)
+//   {
+//     case 0 : break;
+//     case 1 : 
+//     case 3 : expand_ocean(); break;
+//     case 2 : 
+//     case 4 : ocean = realloc(ocean,sizeof(unsigned)*DIM*DIM); break;
+//     case 5 : break;
+//     case 6 : break;
+//   }
+
+//   if(config == 0) sand_init_center();
+//   else sand_init_homogeneous();
+// }
+
+// /*
+//   calculate speed up for every algorithm on every size and configuration
+// */
+// void speedup(int iterations)
+// {
+//   int nb_configurations = 2;
+//   int nb_algorithmes = 7;
+//   int sizes[2]={128,512};
+//   int nb_sizes = 2;
+
+//   // 7 algo * 2 config * 2 size
+//   double resultats[nb_algorithmes*nb_configurations*nb_sizes];
+//   for(int i = 0 ; i < nb_algorithmes*nb_configurations*nb_sizes ; i++)
+//   {
+//     resultats[i] = 0;
+//   }
+
+//   unsigned long temps;
+//   struct timeval t1, t2;
+
+
+
+//   ocean = malloc(sizeof(unsigned)*sizes[0]*sizes[0]);
+
+//   for(int algo = 0 ; algo < nb_algorithmes ; algo++)
+//   {
+//     for(int s = 0 ; s < nb_sizes ; s++)
+//     {
+//       DIM = sizes[s];
+
+//       for(int c = 0 ; c < nb_configurations ; c++)
+//       {
+//         for(int iter = 0 ; iter < iterations ; iter++)
+//         {
+
+//           printf("");
+//           speedup_inside_init(algo,c,iter);
+
+//           gettimeofday(&t1,NULL);
+          
+//           switch(algo)
+//           {
+//             case 0 : without_display(compute_seq_expander); break;
+//             case 1 : without_display(compute_seq_gatherer); break;
+//             case 2 : without_display(compute_seq_multipleline_expander); break;
+//             case 3 : without_display(compute_seq_multipleline_gatherer); break;
+//             case 4 : without_display(compute_parallel_for_gatherer); break;
+//             case 5 : without_display(compute_parallel_p_iteration); break;
+//             case 6 : without_display(compute_parallel_task); break;
+//           }
+
+//           gettimeofday(&t2,NULL);
+          
+//           resultats[algo+s+c] += TIME_DIFF(t1,t2);
+//         }
+//         resultats[algo+s+c] = resultats[algo+s+c]/iterations;
+//         printf("%f\n",resultats[algo+s+c]);
+//       }
+//     }
+//     printf("algo : "+algo);
+//   }
+
+
+//   free(ocean);
+//   exit(0);
+// }
+
+static char * man = {"usage : ./sand <GUI> <INITIALIZATION> <SIZE> <ALGORITHM>\n"
     "\t-GUI can be :\n"
     "\t\t- 0 to disable GUI\n"
     "\t\t- 1 to enable GUI\n"
@@ -503,11 +602,21 @@ static char * man = {"usage : ./sand <GUI> <INITIALIZATION> <SIZE> <ALGORITHM>\n
     "\t\t- U : it runs the sequential unwrapped gatherer method ;\n"
     "\t\t- F : it runs the parallel gatherer method ;\n"
     "\t\t- P : it runs the parallel gatherer method which synchronise each p iterations ;\n"
-    "\t\t- t : it runs the parallel expander task method ;\n"};
+    "\t\t- t : it runs the parallel expander task method ;\n"
+  };
 
 void treatment(int argc, char ** argv)
 {
-  if(argc)
+
+  if(argc < 5) {
+      printf("%s", man);
+      exit(-1);
+    }
+
+  // //branchement vers speedup
+  // if(strtol(argv[1],NULL,10)==2)
+  //   speedup(strtol(argv[2],NULL,10));
+
   DIM = strtol(argv[3],NULL,10);
   if(!DIM)
   {
@@ -515,7 +624,6 @@ void treatment(int argc, char ** argv)
     return;
   }
   
-
   // pas d'autres allocations durant le traitement,
   // ne sera pas free par nous à la fin si on entre dans display car aurait nécessité de modifier display 
   // MAIS sera nettoyé sans perte à la fermture du processus en tout les cas.
@@ -536,6 +644,8 @@ void treatment(int argc, char ** argv)
       printf("Unrecognize configuration. Please, read our manual by using ./sand\n");
       break;
   }
+
+
   unsigned long temps;
   struct timeval t1, t2;
 
@@ -638,7 +748,7 @@ void treatment(int argc, char ** argv)
       break;
 
     default :
-      printf("Unrecognize Algorithm. Please, read how to use this program\n\n");
+      printf("Unrecognize Algorithm. Please, use an algorithm as you can see in the usage : ./sand\n\n");
       printf("%s\n", man);
       break;
   }
@@ -656,4 +766,10 @@ void treatment(int argc, char ** argv)
   }
   print();
   free(ocean);
+}
+
+int main (int argc, char **argv)
+{ 
+  treatment(argc,argv);
+  return 0;
 }

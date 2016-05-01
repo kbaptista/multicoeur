@@ -16,13 +16,13 @@ endif
 
 default: $(PROG)
 
-$(PROG): sand.o display.o treatment.o
-	$(CC) -o $@ $(LDFLAGS) $^ $(LDLIBS) 
-
 clean:
 	rm -rf *.o $(PROG) $(COMPARER)
 
+$(PROG): treatment.o display.o treatment.o
+	$(CC) -o $@ $(LDFLAGS) $^ $(LDLIBS) 
 
+$(EXEC): util.o display.o
 
 
 
