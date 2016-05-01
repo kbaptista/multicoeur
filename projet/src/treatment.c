@@ -415,7 +415,6 @@ void compute_parallel_p_iteration_inside(int iterations, int nb_lines, int my_li
   {
     for(int y = 1 ; y < DIM-1 ; y++)
     {
-      //#pragma omp critical
       ocean[(begin+x+1)*DIM+y] = ocean_private[(iterations+x)*DIM+y][1-table];
     }
   }

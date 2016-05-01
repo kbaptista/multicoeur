@@ -1,0 +1,3 @@
+Homogeneous Case
+Sequential expander Algorithm | 4 lines each loop turn
+Algorithm time = 240.200ms 
