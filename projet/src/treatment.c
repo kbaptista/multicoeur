@@ -227,6 +227,8 @@ static inline float *compute_seq_multipleline_expander(unsigned iterations)
           int div4 = ocean[x*DIM+y+3]/4;
           compute_cell_expander(x,y+3,div4);
         }
+
+
       } 
       // boucle nécessaire pour finir le traitement de la matrice si DIM-1 n'est pas multiple de 4 
       int res = (DIM-2)%4;
@@ -234,8 +236,11 @@ static inline float *compute_seq_multipleline_expander(unsigned iterations)
       {
         for (int y = res; y < DIM-1; y++)
         {
-          int div4 = ocean[x*DIM+y]/4;
-          compute_cell_expander(x,y,div4);
+          if(ocean[x*DIM+y] >= MAX_HEIGHT)
+          {
+            int div4 = ocean[x*DIM+y]/4;
+            compute_cell_expander(x,y,div4);
+          }
         }
       }
     }
@@ -765,7 +770,7 @@ void treatment(int argc, char ** argv)
     ocean[i*DIM]=0;         //left Line
     ocean[i*DIM+DIM-1]=0;   //Right Line
   }
-  print();
+  //print();
   free(ocean);
 }
 
