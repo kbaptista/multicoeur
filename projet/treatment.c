@@ -111,12 +111,12 @@ static inline void compute_cell_expander(int x, int y, int div4)
 }
 
 /** 
-  * Divide the [x][y] cell content and repart it in the neighbours.
+  * Divide the [x][y] cell content then add to himself the quarter of neigbours squares.
 */
 static inline unsigned compute_cell_gatherer(int x, int y, int table)
 {
   unsigned val = ocean[table+x*DIM+y]%4 + ocean[table+(x-1)*DIM+y]/4 + ocean[table+(x+1)*DIM+y]/4 + ocean[table+x*DIM+y-1]/4 + ocean[table+x*DIM+y+1]/4;
-  if (val  != ocean[table+x*DIM+y]) is_end = false ;
+  is_end &= (val==ocean[table+x*DIM+y]) ;
   return val;
 }
 
@@ -159,8 +159,8 @@ static inline float *compute_seq_gatherer(unsigned iterations)
   }
   is_end = true;
  
-  int table = 0;
-  int table_2 = DIM*DIM;
+  int table = DIM*DIM;
+  int index = 0;
  
   for (unsigned i = 0; i < iterations; i++)
   {
@@ -168,29 +168,20 @@ static inline float *compute_seq_gatherer(unsigned iterations)
     {
       for (int y = 1; y < DIM-1; y++)
       {
-        ocean[table_2+x*DIM+y] = compute_cell_gatherer(x,y,table);
+        ocean[table*(1-index)+x*DIM+y] = compute_cell_gatherer(x,y,table*index);
       }
     }
     //switch table after each iteration
-    if (table==0)
-    {
-      table = DIM*DIM;
-      table_2 = 0;
-    }
-    else
-    {
-      table = 0;
-      table_2 = DIM*DIM;
-    }
+    index = 1- index;
   }
   //we have to be sure that the last calculated table is in the first half of ocean
-  if(table != 0)
+  if(table*(1-index) != 0)
   {
     for (int x = 1; x < DIM-1; x++)
     {
       for (int y = 1; y < DIM-1; y++)
       {
-        ocean[table_2+x*DIM+y] = ocean[table+x*DIM+y];
+        ocean[table*(1-index)+x*DIM+y] = ocean[table*index+x*DIM+y];
       }
     }
   }
@@ -655,7 +646,14 @@ void treatment(int argc, char ** argv)
    
   temps = TIME_DIFF(t1,t2);
   printf("Algorithm time = %ld.%03ldms \n", temps/1000, temps%1000);
-
-  //print();
+  //Set the border at 0 (help to track differences between sequential expander and others algorithms)
+  for (int i = 0; i < DIM; ++i)
+  {
+    ocean[i]=0;             //Top Line
+    ocean[i+DIM*(DIM-1)]=0; //Bottom Line
+    ocean[i*DIM]=0;         //left Line
+    ocean[i*DIM+DIM-1]=0;   //Right Line
+  }
+  print();
   free(ocean);
 }
