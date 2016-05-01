@@ -386,7 +386,6 @@ void compute_parallel_p_iteration_inside(int iterations, int nb_lines, int my_li
   for (unsigned i = 1; i <= iterations; i++)
   {
     taille = (iterations-i)*2+my_lines;
-    //tmp
     for (int x = i; x < i+taille; x++)
     {
       for (int y = 1; y < DIM-1; y++)
@@ -411,7 +410,7 @@ void compute_parallel_p_iteration_inside(int iterations, int nb_lines, int my_li
   {
     for(int y = 1 ; y < DIM-1 ; y++)
     {
-#pragma omp critical
+      //#pragma omp critical
       ocean[(begin+x+1)*DIM+y] = ocean_private[(iterations+x)*DIM+y][1-table];
     }
   }
@@ -613,6 +612,8 @@ void treatment(int argc, char ** argv)
       exit(-1);
     }
 
+
+  //non fonctionnel
   // //branchement vers speedup
   // if(strtol(argv[1],NULL,10)==2)
   //   speedup(strtol(argv[2],NULL,10));
